@@ -87,8 +87,10 @@ function filterByCat(cat, btn) {
 
 function renderMenu() {
     const container = document.getElementById('menu-list');
+    const search = (document.getElementById('search-menu')?.value || '').toLowerCase().trim();
     let products = allMenuProducts;
     if (selectedCat) products = products.filter(p => p.categoria === selectedCat);
+    if (search) products = products.filter(p => p.nome.toLowerCase().includes(search));
     if (!products.length) {
         container.innerHTML = '<div class="empty-state"><div class="icon">🍕</div><p>Nenhum produto encontrado</p></div>';
         return;

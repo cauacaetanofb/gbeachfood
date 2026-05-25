@@ -30,6 +30,7 @@
 <div id="tab-cardapio" class="tab-content active">
     <div class="surface-card">
         <h3>Cardápio</h3>
+        <input class="input" id="search-menu" placeholder="🔍 Buscar produto..." oninput="renderMenu()" style="margin-bottom:0.8rem;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.9em;font-size:0.85rem;width:100%;box-sizing:border-box;">
         <div id="cat-filter" style="display:flex;gap:0.4rem;overflow-x:auto;padding-bottom:0.6rem;margin-bottom:0.8rem;scrollbar-width:none;-ms-overflow-style:none;">
             <button class="period-btn active" onclick="filterByCat('', this)">Todos</button>
             <button class="period-btn" onclick="filterByCat('Bebidas', this)">Bebidas</button>
