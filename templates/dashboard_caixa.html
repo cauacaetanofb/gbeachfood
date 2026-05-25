@@ -310,8 +310,11 @@
 <!-- Tab: Relatório (caixa only) -->
 <div id="tab-relatorio" class="tab-content">
 
-    <div class="surface-card">
-        <h3>📊 Relatório do Dia</h3>
+    <div class="surface-card" id="caixa-report-area">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;">
+            <h3 style="margin:0;">📊 Relatório do Dia</h3>
+            <button class="btn-secondary" onclick="printReport('caixa-report-area')" style="font-size:0.78rem;padding:0.4rem 0.8rem;">🖨️ Imprimir</button>
+        </div>
         <div id="report-loading" class="loading">
             <div class="spinner"></div>
         </div>

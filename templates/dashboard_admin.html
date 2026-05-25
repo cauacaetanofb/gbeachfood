@@ -79,8 +79,11 @@
 
 <!-- Tab: Relatórios -->
 <div id="tab-relatorios" class="tab-content">
-    <div class="surface-card">
-        <h3>Relatório de Vendas</h3>
+    <div class="surface-card" id="admin-report-area">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;">
+            <h3 style="margin:0;">Relatório de Vendas</h3>
+            <button class="btn-secondary" onclick="printReport('admin-report-area')" style="font-size:0.78rem;padding:0.4rem 0.8rem;">🖨️ Imprimir</button>
+        </div>
         <div class="period-select">
             <button class="period-btn active" onclick="loadReport('today', this)">Hoje</button>
             <button class="period-btn" onclick="loadReport('week', this)">Semana</button>
