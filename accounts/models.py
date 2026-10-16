@@ -1,7 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
-import random
+import secrets
 import string
 
 
@@ -42,7 +42,7 @@ class PasswordResetCode(models.Model):
 
     @staticmethod
     def generate_code():
-        return ''.join(random.choices(string.digits, k=6))
+        return ''.join(secrets.choice(string.digits) for _ in range(6))
 
     class Meta:
         ordering = ['-criado_em']

@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 load_dotenv()
 
@@ -26,12 +27,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('TOKEN_CSRF', os.getenv('SECRET_KEY', 'django-insecure-dev-only-key'))
-CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if os.getenv('CSRF_TRUSTED_ORIGINS') else ['https://projetorestaurante-production.up.railway.app']
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['projetorestaurante-production.up.railway.app', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    if host.strip()
+]
 
 # Application definition
 
@@ -98,6 +107,13 @@ if DATABASE_URL:
         'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=1800)
     }
 
+# SQLite serializa operações de escrita desde o início da transação.
+if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
+    DATABASES['default'].setdefault('OPTIONS', {}).update({
+        'transaction_mode': 'IMMEDIATE',
+        'timeout': 20,
+    })
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -151,9 +167,21 @@ LOGIN_REDIRECT_URL = '/dashboard/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Email (console para dev — troque para SMTP em produção)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'GFood <noreply@gfood.com>'
+# E-mail: Gmail SMTP por padrão; console é uma opção explícita de desenvolvimento.
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() in ('true', '1', 'yes')
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '15'))
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL') or EMAIL_HOST_USER or 'GFood <noreply@localhost>'
+
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ImproperlyConfigured('Configure apenas EMAIL_USE_TLS ou EMAIL_USE_SSL, nunca os dois.')
+if not DEBUG and EMAIL_BACKEND == 'django.core.mail.backends.console.EmailBackend':
+    raise ImproperlyConfigured('O backend de e-mail console é permitido apenas com DEBUG=True.')
 
 # Autenticação: login por email ou username
 AUTHENTICATION_BACKENDS = [

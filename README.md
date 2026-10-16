@@ -8,7 +8,6 @@
   <img src="https://img.shields.io/badge/Django-5.2-092E20?style=for-the-badge&logo=django" alt="Django 5.2">
   <img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+">
   <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
-  <img src="https://img.shields.io/badge/Railway-0B0D0E?style=for-the-badge&logo=railway" alt="Railway">
 </p>
 
 ---
@@ -132,9 +131,6 @@ projeto_restaurante/
 ├── media/                  # 📷 Uploads (imagens de produtos)
 ├── manage.py
 ├── requirements.txt
-├── ProcFile                # Comando de start (Railway/Heroku)
-├── railway.toml            # Configuração de deploy (Railway)
-├── runtime.txt             # Versão do Python
 └── .env                    # Variáveis de ambiente (NÃO vai para o git)
 ```
 
@@ -153,7 +149,6 @@ projeto_restaurante/
 | **Asaas API** | Gateway de pagamento (PIX) |
 | **Gunicorn** | Servidor WSGI para produção |
 | **WhiteNoise** | Servir arquivos estáticos em produção |
-| **Railway** | Plataforma de deploy |
 
 ---
 
@@ -218,31 +213,24 @@ python manage.py runserver
 
 ---
 
-## ☁️ Deploy no Railway
+## ☁️ Configuração para deploy
 
-O projeto já está configurado para deploy no Railway com os arquivos `ProcFile` e `railway.toml`.
-
-### Passo a passo
-
-1. Crie uma conta em [railway.com](https://railway.com)
-2. Crie um novo projeto e conecte ao repositório GitHub
-3. Adicione um banco **PostgreSQL** ao projeto
-4. Configure as **variáveis de ambiente** no dashboard:
+A plataforma de hospedagem será definida separadamente. As configurações abaixo são lidas pelo projeto e podem ser definidas no ambiente da nova hospedagem:
 
 | Variável | Descrição |
 |---|---|
 | `SECRET_KEY` | Chave secreta do Django |
+| `DEBUG` | Use `False` em produção |
+| `ALLOWED_HOSTS` | Domínios permitidos, sem protocolo, separados por vírgula (ex.: `app.exemplo.com`) |
+| `CSRF_TRUSTED_ORIGINS` | Origens confiáveis, com protocolo, separadas por vírgula (ex.: `https://app.exemplo.com`) |
+| `DATABASE_URL` | URL de conexão ao banco; quando ausente, o projeto usa SQLite local |
 | `ASAAS_API_KEY` | Chave da API Asaas |
-| `ASAAS_BASE_URL` | URL da API Asaas (`sandbox` ou `produção`) |
+| `ASAAS_BASE_URL` | URL da API Asaas (`sandbox` ou produção) |
 | `ASAAS_WEBHOOK_TOKEN` | Token de autenticação do webhook |
-| `CSRF_TRUSTED_ORIGINS` | URL do app (ex: `https://seuapp.up.railway.app`) |
-| `DJANGO_SUPERUSER_USERNAME` | Username do admin (criado automaticamente) |
-| `DJANGO_SUPERUSER_EMAIL` | Email do admin |
-| `DJANGO_SUPERUSER_PASSWORD` | Senha do admin |
 
-> 💡 A variável `DATABASE_URL` é configurada **automaticamente** pelo Railway.
+Sem configuração adicional, os hosts permitidos são `localhost` e `127.0.0.1`, e a lista de origens CSRF confiáveis fica vazia.
 
-5. O deploy acontece automaticamente a cada `git push`!
+A nova configuração de deploy deverá prever a instalação das dependências, a execução de `python manage.py migrate`, a coleta de estáticos com `python manage.py collectstatic --noinput` e a inicialização da aplicação WSGI `gfood.wsgi:application`.
 
 ---
 
@@ -267,12 +255,57 @@ O sistema utiliza a [API do Asaas](https://docs.asaas.com) para processar recarg
 
 Configure a URL do webhook no painel do Asaas:
 ```
-https://seuapp.up.railway.app/api/asaas/webhook/
+https://app.exemplo.com/api/asaas/webhook/
 ```
 
 Eventos que devem ser habilitados:
 - `PAYMENT_CONFIRMED`
 - `PAYMENT_RECEIVED`
+
+---
+
+## 🔐 Recargas e consistência do saldo
+
+- Recargas presenciais exigem perfil `caixa` ou `admin`. Clientes geram PIX; o crédito ocorre após confirmação autenticada.
+- Configure `ASAAS_WEBHOOK_TOKEN` no ambiente e use o mesmo valor como token de autenticação do webhook no painel Asaas. Esse token é diferente da chave da API. Sem configuração, o endpoint retorna HTTP 503; sem token válido na requisição, HTTP 401.
+- O webhook aceita POST e valida cobrança, valor, tipo PIX e status confirmado/recebido. A recarga é creditada uma única vez, mesmo com reenvios ou os dois eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED`.
+- Cartão bloqueado ou que mudou de proprietário não recebe a recarga pendente: o webhook retorna HTTP 409, sem crédito, para revisão operacional.
+- Depósitos, retiradas, cancelamentos, transferências e pedidos gravam saldo e histórico na mesma transação. Uma falha desfaz todas as gravações da operação.
+- Valores monetários locais usam `Decimal`; entradas não finitas, negativas, acima do limite ou com fração de centavo são rejeitadas.
+- PostgreSQL utiliza bloqueios por linha. SQLite usa transações `IMMEDIATE`, serializando escritores; sua capacidade de concorrência é diferente da de PostgreSQL.
+
+## ✉️ Recuperação de senha com Gmail
+
+O backend padrão é SMTP. Use as entradas de [`.env.example`](.env.example) no seu `.env`, preservando as configurações já existentes:
+
+```env
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=sua-conta@gmail.com
+EMAIL_HOST_PASSWORD=sua-senha-de-app
+EMAIL_USE_TLS=True
+EMAIL_USE_SSL=False
+EMAIL_TIMEOUT=15
+DEFAULT_FROM_EMAIL=GFood <sua-conta@gmail.com>
+```
+
+Ative a verificação em duas etapas na conta e gere uma **senha de app** nas [configurações do Google](https://support.google.com/accounts/answer/185833?hl=pt-BR). Informe-a somente no `.env` local ou nos segredos da hospedagem. A disponibilidade de senhas de app depende das políticas da conta. Não use a senha normal da conta. Reinicie a aplicação após configurar.
+
+Para desenvolvimento sem envio real, defina explicitamente `EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend` e `DEBUG=True`. Console é rejeitado com `DEBUG=False`. TLS e SSL não podem ser habilitados ao mesmo tempo.
+
+Se faltar configuração ou o SMTP falhar, a API retorna erro JSON (HTTP 503). Um código que não foi enviado é removido. Os testes usam mensagens em memória e SMTP simulado, sem enviar e-mails reais.
+
+## 🧪 Validação das correções
+
+```bash
+python -B manage.py test --settings=gfood.test_settings
+node tests/login_recovery.test.cjs
+```
+
+A configuração de testes ignora `.env`, usa SQLite em memória, senhas de teste e e-mail em memória. Os testes da API Asaas simulam as chamadas externas. Dois testes de concorrência exigem PostgreSQL e são ignorados no SQLite. Para executá-los, forneça `TEST_DATABASE_URL` de um ambiente PostgreSQL exclusivo de testes (com permissão de criar o banco de teste) ao executar a mesma suíte; não use credenciais de produção.
+
+O plano, as etapas aplicadas e as limitações de validação estão em [docs/PLANO_CORRECOES.md](docs/PLANO_CORRECOES.md).
 
 ---
 
@@ -309,7 +342,7 @@ Eventos que devem ser habilitados:
 | POST | `/api/cards/balance/add/` | Adiciona saldo (caixa) |
 | POST | `/api/cards/balance/remove/` | Remove saldo (caixa) |
 | POST | `/api/cards/temp/create/` | Cria cartão temporário (caixa) |
-| POST | `/api/cards/client/add/` | Cliente adiciona saldo |
+| POST | `/api/cards/client/add/` | Rota antiga desativada: retorna HTTP 410 sem alterar saldo |
 | GET | `/api/cards/client/<id>/transactions/` | Transações de um cliente (admin) |
 | GET | `/api/cards/my/transactions/` | Minhas transações (cliente) |
 | GET | `/api/cards/search-cpf/?cpf=XXX` | Busca cartão por CPF |

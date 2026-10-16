@@ -1,6 +1,10 @@
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
+from smtplib import SMTPException
+import logging
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
@@ -8,6 +12,8 @@ import json
 
 from .forms import LoginForm, ClienteRegisterForm, StaffUserForm
 from .models import User, PasswordResetCode
+
+logger = logging.getLogger(__name__)
 
 
 def login_view(request):
@@ -82,27 +88,44 @@ def dashboard_view(request):
 @require_POST
 def api_forgot_password(request):
     """Envia código de 6 dígitos para o e-mail."""
-    data = json.loads(request.body)
-    email = data.get('email', '').strip()
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'JSON inválido'}, status=400)
+    if not isinstance(data, dict) or not isinstance(data.get('email'), str):
+        return JsonResponse({'error': 'Informe o e-mail'}, status=400)
+    email = data['email'].strip()
     if not email:
         return JsonResponse({'error': 'Informe o e-mail'}, status=400)
 
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        # Retorna sucesso mesmo se email não existe (segurança)
+    if settings.EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend':
+        gmail_without_credentials = settings.EMAIL_HOST == 'smtp.gmail.com' and not (
+            settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD)
+        if not settings.EMAIL_HOST or gmail_without_credentials:
+            return JsonResponse({'error': 'Envio de e-mail não configurado. Contate o suporte.'}, status=503)
+
+    if not User.objects.filter(email=email).exists():
         return JsonResponse({'success': True})
 
     code = PasswordResetCode.generate_code()
-    PasswordResetCode.objects.create(email=email, code=code)
-
-    send_mail(
-        subject='GFood — Código de Recuperação',
-        message=f'Seu código de recuperação é: {code}\n\nEste código expira em 15 minutos.',
-        from_email=None,  # usa DEFAULT_FROM_EMAIL
-        recipient_list=[email],
-        fail_silently=False,
-    )
+    reset = PasswordResetCode.objects.create(email=email, code=code)
+    try:
+        sent = send_mail(
+            subject='GFood — Código de Recuperação',
+            message=f'Seu código de recuperação é: {code}\n\nEste código expira em 15 minutos.',
+            from_email=None,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        if sent != 1:
+            raise SMTPException('Mensagem não enviada')
+    except (SMTPException, OSError, ImproperlyConfigured) as error:
+        reset.delete()
+        # Não registrar senha SMTP, código de recuperação ou endereço do destinatário.
+        logger.warning('Falha no envio de recuperação de senha (%s).', type(error).__name__)
+        return JsonResponse({
+            'error': 'Não foi possível enviar o e-mail. Tente novamente mais tarde.',
+        }, status=503)
     return JsonResponse({'success': True})
 
 

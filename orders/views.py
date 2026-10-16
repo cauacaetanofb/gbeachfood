@@ -2,7 +2,8 @@ from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-import json
+from django.db import transaction
+from cards.validation import json_api, money, positive_id, InvalidInput
 
 from .models import Order, OrderItem
 from cards.models import Card, Transaction
@@ -11,35 +12,47 @@ from products.models import Product
 
 @login_required
 @require_POST
+@json_api
+@transaction.atomic
 def api_create_order(request):
     """Cria pedido, debita saldo do cartão."""
     if request.user.user_type not in ['admin', 'balcao', 'caixa']:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
-    data = json.loads(request.body)
+    data = request.json_data
     qr_data = data.get('qr_data', '')
     items = data.get('items', [])
 
-    if not items:
+    if not isinstance(items, list) or not items:
         return JsonResponse({'error': 'Carrinho vazio'}, status=400)
 
     try:
-        card = Card.objects.get(qr_code_data=qr_data)
+        card = Card.objects.select_for_update().get(qr_code_data=qr_data)
     except Card.DoesNotExist:
         return JsonResponse({'error': 'Cartão não encontrado'}, status=404)
+
+    if card.bloqueado:
+        raise InvalidInput('Este cartão está cancelado.')
 
     # Calcula total
     total = Decimal('0')
     order_items = []
     for item in items:
+        if not isinstance(item, dict):
+            raise InvalidInput('Item inválido.')
+        product_id = positive_id(item.get('product_id'))
+        qtd = positive_id(item.get('quantidade', 1))
+        if qtd > 2147483647:
+            raise InvalidInput('Quantidade inválida.')
         try:
-            product = Product.objects.get(id=item['product_id'], disponivel=True)
+            product = Product.objects.get(id=product_id, disponivel=True)
         except Product.DoesNotExist:
             return JsonResponse({'error': f'Produto {item.get("product_id")} não encontrado'}, status=404)
-        qtd = int(item.get('quantidade', 1))
-        subtotal = product.preco * qtd
+        subtotal = money(money(product.preco) * qtd)
         total += subtotal
         order_items.append((product, qtd, subtotal))
+
+    total = money(total)
 
     # Verifica saldo
     if card.saldo < total:
@@ -64,7 +77,7 @@ def api_create_order(request):
 
     # Debita saldo
     card.saldo -= total
-    card.save()
+    card.save(update_fields=['saldo'])
 
     # Registra transação
     nomes = ', '.join([f'{qtd}x {p.nome}' for p, qtd, _ in order_items])
@@ -75,7 +88,7 @@ def api_create_order(request):
         valor=total,
         metodo='saldo',
         cpf_cliente=cpf,
-        descricao=f'Pedido #{order.id}: {nomes}',
+        descricao=f'Pedido #{order.id}: {nomes}'[:255],
         operador=request.user,
         order=order,
     )

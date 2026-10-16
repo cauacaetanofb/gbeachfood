@@ -1,0 +1,88 @@
+# Variaveis de ambiente e credenciais locais
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.envrc
+/.aws/
+*.pem
+*.key
+
+# Ambientes virtuais Python
+/venv/
+/.venv/
+/env/
+/ENV/
+/venv.bak/
+/env.bak/
+
+# Cache e arquivos compilados Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# Banco de dados local Django/SQLite e arquivos auxiliares
+*.sqlite3
+*.sqlite3-*
+*.sqlite
+*.sqlite-*
+
+# Arquivos gerados e uploads Django
+/staticfiles/
+/media/
+*.log
+/logs/
+
+# Testes, cobertura e ferramentas de analise
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+nosetests.xml
+
+# Build e empacotamento Python
+/build/
+/dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# Configuracoes locais de editores
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Arquivos temporarios e backups locais
+*.tmp
+*.temp
+*.bak
+*.orig
+/tmp/
+/temp/
+/backups/
+
+# Arquivos do sistema operacional
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Migrations, static/, templates/ e arquivos de deploy devem ser versionados.
+
+# Documentacao local (temporariamente fora do Git)
+/docs/

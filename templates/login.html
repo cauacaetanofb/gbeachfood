@@ -97,9 +97,6 @@
 
 {% block extra_scripts %}
 <script>
-const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
-    || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
-
 function showForgotStep(step) {
     document.getElementById('forgot-step-1').style.display = step === 1 ? 'block' : 'none';
     document.getElementById('forgot-step-2').style.display = step === 2 ? 'block' : 'none';

@@ -2,12 +2,32 @@ import base64
 import io
 import qrcode
 from decimal import Decimal as D
+from datetime import date, timedelta
+import requests as http_requests
+from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings as django_settings
+from django.db import transaction
+from django.utils.crypto import constant_time_compare
+from .validation import money, json_api, InvalidInput, MAX_AMOUNT, positive_id
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-import json
 
-from .models import Card, Transaction
+from .models import Card, Transaction, Recarga
+
+
+def _payment_method(data):
+    method = data.get('metodo', 'dinheiro')
+    if method not in ('dinheiro', 'pix', 'credito', 'debito'):
+        raise InvalidInput('Forma de pagamento inválida.')
+    return method
+
+
+def _validate_credit(card, amount):
+    if card.bloqueado:
+        raise InvalidInput('Este cartão está cancelado.')
+    if card.saldo + amount > MAX_AMOUNT:
+        raise InvalidInput('Saldo máximo excedido.')
 
 
 def generate_qr_base64(data_str):
@@ -61,178 +81,111 @@ def api_check_balance(request):
 
 @login_required
 @require_POST
+@json_api
+@transaction.atomic
 def api_add_balance(request):
-    """Adiciona saldo ao cartão (caixa/admin)."""
-    data = json.loads(request.body)
-    qr_data = data.get('qr_data', '')
-    valor = data.get('valor', 0)
-    metodo = data.get('metodo', 'dinheiro')
+    """Recarga presencial restrita a caixa/admin, com saldo e extrato atômicos."""
+    if request.user.user_type not in ('admin', 'caixa'):
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+    data = request.json_data
+    valor = money(data.get('valor'))
+    metodo = _payment_method(data)
     try:
-        valor = float(valor)
-        if valor <= 0:
-            return JsonResponse({'error': 'Valor deve ser positivo'}, status=400)
-    except (ValueError, TypeError):
-        return JsonResponse({'error': 'Valor inválido'}, status=400)
-
-    try:
-        card = Card.objects.get(qr_code_data=qr_data)
-        if card.bloqueado:
-            return JsonResponse({'error': 'Este cartão está cancelado'}, status=400)
-        card.saldo += D(str(round(valor, 2)))
-        card.save()
-        Transaction.objects.create(
-            card=card,
-            tipo='deposito',
-            valor=D(str(round(valor, 2))),
-            metodo=metodo,
-            origem='caixa',
-            descricao=f'Recarga presencial via {dict(Transaction.METODO_CHOICES).get(metodo, metodo)}',
-            operador=request.user,
-        )
-        return JsonResponse({'success': True, 'novo_saldo': str(card.saldo)})
+        card = Card.objects.select_for_update().get(qr_code_data=data.get('qr_data', ''))
     except Card.DoesNotExist:
         return JsonResponse({'error': 'Cartão não encontrado'}, status=404)
+    _validate_credit(card, valor)
+    card.saldo += valor
+    card.save(update_fields=['saldo'])
+    Transaction.objects.create(
+        card=card, tipo='deposito', valor=valor, metodo=metodo, origem='caixa',
+        descricao=f'Recarga presencial via {dict(Transaction.METODO_CHOICES)[metodo]}',
+        operador=request.user,
+    )
+    return JsonResponse({'success': True, 'novo_saldo': str(card.saldo)})
 
 
 @login_required
 @require_POST
+@json_api
+@transaction.atomic
 def api_remove_balance(request):
-    """Remove saldo do cartão."""
-    if request.user.user_type not in ['admin', 'caixa']:
+    if request.user.user_type not in ('admin', 'caixa'):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
-    data = json.loads(request.body)
-    qr_data = data.get('qr_data', '')
-    valor = data.get('valor', 0)
-    metodo = data.get('metodo', 'dinheiro')
+    data = request.json_data
+    valor = money(data.get('valor'))
+    metodo = _payment_method(data)
     try:
-        valor = float(valor)
-        if valor <= 0:
-            return JsonResponse({'error': 'Valor deve ser positivo'}, status=400)
-    except (ValueError, TypeError):
-        return JsonResponse({'error': 'Valor inválido'}, status=400)
-
-    try:
-        card = Card.objects.get(qr_code_data=qr_data)
-        if float(card.saldo) < valor:
-            return JsonResponse({'error': 'Saldo insuficiente'}, status=400)
-        card.saldo -= D(str(round(valor, 2)))
-        card.save()
-        Transaction.objects.create(
-            card=card,
-            tipo='retirada',
-            valor=D(str(round(valor, 2))),
-            metodo=metodo,
-            descricao='Retirada de saldo',
-            operador=request.user,
-        )
-        return JsonResponse({'success': True, 'novo_saldo': str(card.saldo)})
+        card = Card.objects.select_for_update().get(qr_code_data=data.get('qr_data', ''))
     except Card.DoesNotExist:
         return JsonResponse({'error': 'Cartão não encontrado'}, status=404)
+    if card.bloqueado:
+        raise InvalidInput('Este cartão está cancelado.')
+    if card.saldo < valor:
+        raise InvalidInput('Saldo insuficiente.')
+    card.saldo -= valor
+    card.save(update_fields=['saldo'])
+    Transaction.objects.create(
+        card=card, tipo='retirada', valor=valor, metodo=metodo, origem='caixa',
+        descricao='Retirada de saldo', operador=request.user,
+    )
+    return JsonResponse({'success': True, 'novo_saldo': str(card.saldo)})
 
 
 @login_required
 @require_POST
+@json_api
+@transaction.atomic
 def api_create_temp_card(request):
-    """Caixa cria cartão temporário vinculado a QR físico com saldo inicial."""
-    if request.user.user_type not in ['admin', 'caixa']:
+    if request.user.user_type not in ('admin', 'caixa'):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
-    data = json.loads(request.body)
+    data = request.json_data
     nome = data.get('nome', '')
     cpf = data.get('cpf', '')
     telefone = data.get('telefone', '')
-    qr_data = data.get('qr_data', '')
-    valor = data.get('valor', 0)
-    metodo = data.get('metodo', 'dinheiro')
-    if not nome:
-        return JsonResponse({'error': 'Nome é obrigatório'}, status=400)
-
-    try:
-        valor = float(valor)
-        if valor <= 0:
-            return JsonResponse({'error': 'Valor deve ser positivo'}, status=400)
-    except (ValueError, TypeError):
-        return JsonResponse({'error': 'Valor inválido'}, status=400)
-
-    # Se o QR de um cartão físico foi escaneado, vincular a ele
-    card = None
+    for value, limit in ((nome, 200), (cpf, 14), (telefone, 15)):
+        if not isinstance(value, str) or len(value) > limit:
+            raise InvalidInput('Dados do cliente inválidos.')
+    if not nome.strip():
+        raise InvalidInput('Nome é obrigatório.')
+    valor = money(data.get('valor'))
+    metodo = _payment_method(data)
+    qr_data = data.get('qr_data')
     if qr_data:
         try:
-            card = Card.objects.get(qr_code_data=qr_data)
-            if card.bloqueado:
-                # Cartão cancelado: liberar para reutilização
-                card.bloqueado = False
-                card.motivo_bloqueio = ''
-            # Atualizar como temporário com dados do cliente
-            card.is_temporary = True
-            card.nome = nome
-            card.cpf = cpf
-            card.telefone = telefone
-            card.saldo += D(str(round(valor, 2)))
-            card.save()
+            card = Card.objects.select_for_update().get(qr_code_data=qr_data)
         except Card.DoesNotExist:
             return JsonResponse({'error': 'QR Code do cartão físico não encontrado'}, status=404)
+        if card.user_id is not None:
+            raise InvalidInput('Este cartão já pertence a um usuário cadastrado.')
+        card.bloqueado = False
+        card.motivo_bloqueio = ''
+        _validate_credit(card, valor)
+        card.saldo += valor
+        card.is_temporary = True
+        card.nome, card.cpf, card.telefone = nome.strip(), cpf, telefone
+        card.save()
     else:
-        card = Card.objects.create(
-            is_temporary=True,
-            nome=nome,
-            cpf=cpf,
-            telefone=telefone,
-            saldo=D(str(round(valor, 2))),
-        )
-
-    # Registrar depósito inicial
+        card = Card.objects.create(is_temporary=True, nome=nome.strip(), cpf=cpf,
+                                   telefone=telefone, saldo=valor)
     Transaction.objects.create(
-        card=card,
-        tipo='deposito',
-        valor=D(str(round(valor, 2))),
-        metodo=metodo,
-        origem='caixa',
-        descricao=f'Recarga presencial — novo cartão para {nome}',
-        operador=request.user,
+        card=card, tipo='deposito', valor=valor, metodo=metodo, origem='caixa',
+        descricao=f'Recarga presencial — novo cartão para {nome}'[:255], operador=request.user,
     )
-
-    qr_b64 = generate_qr_base64(str(card.qr_code_data))
-    return JsonResponse({
-        'success': True,
-        'card': {
-            'id': card.id,
-            'nome': card.nome,
-            'saldo': str(card.saldo),
-            'qr_code_data': str(card.qr_code_data),
-            'qr_code_image': qr_b64,
-        }
-    })
+    return JsonResponse({'success': True, 'card': {
+        'id': card.id, 'nome': card.nome, 'saldo': str(card.saldo),
+        'qr_code_data': str(card.qr_code_data),
+        'qr_code_image': generate_qr_base64(str(card.qr_code_data)),
+    }})
 
 
 @login_required
 @require_POST
 def api_client_add_balance(request):
-    """Cliente adiciona saldo ao próprio cartão."""
-    if request.user.user_type not in ('cliente', 'admin'):
-        return JsonResponse({'error': 'Sem permissão'}, status=403)
-    data = json.loads(request.body)
-    valor = data.get('valor', 0)
-    metodo = data.get('metodo', 'pix')
-    try:
-        valor = float(valor)
-        if valor <= 0:
-            return JsonResponse({'error': 'Valor deve ser positivo'}, status=400)
-    except (ValueError, TypeError):
-        return JsonResponse({'error': 'Valor inválido'}, status=400)
-
-    card, _ = Card.objects.get_or_create(user=request.user)
-    card.saldo += D(str(round(valor, 2)))
-    card.save()
-    Transaction.objects.create(
-        card=card,
-        tipo='deposito',
-        valor=D(str(round(valor, 2))),
-        metodo=metodo,
-        origem='app',
-        descricao=f'Recarga pelo app via {dict(Transaction.METODO_CHOICES).get(metodo, metodo)}',
-        operador=request.user,
-    )
-    return JsonResponse({'success': True, 'novo_saldo': str(card.saldo)})
+    """Rota antiga desativada: crédito do app exige confirmação PIX."""
+    return JsonResponse({
+        'error': 'Recarga direta desativada. Gere um PIX para adicionar saldo.',
+    }, status=410)
 
 
 @login_required
@@ -326,124 +279,83 @@ def api_search_by_cpf(request):
 # ===== Bloquear / Cancelar Cartão =====
 @login_required
 @require_POST
+@json_api
+@transaction.atomic
 def api_block_card(request):
-    """Bloqueia/cancela um cartão e libera o QR físico para reutilização."""
-    if request.user.user_type not in ['admin', 'caixa']:
+    """Cancela cartão e registra a retirada na mesma transação."""
+    if request.user.user_type not in ('admin', 'caixa'):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
-    data = json.loads(request.body)
-    card_id = data.get('card_id')
+    data = request.json_data
+    card_id = positive_id(data.get('card_id'))
     motivo = data.get('motivo', 'Cancelado pelo caixa')
-
+    if not isinstance(motivo, str) or len(motivo) > 255:
+        raise InvalidInput('Motivo inválido.')
     try:
-        card = Card.objects.get(id=card_id)
+        card = Card.objects.select_for_update().get(id=card_id)
     except Card.DoesNotExist:
         return JsonResponse({'error': 'Cartão não encontrado'}, status=404)
-
     if card.bloqueado:
-        return JsonResponse({'error': 'Este cartão já está cancelado'}, status=400)
-
-    # Registrar transação de retirada se houver saldo restante
-    saldo_restante = float(card.saldo)
-    if saldo_restante > 0:
+        raise InvalidInput('Este cartão já está cancelado.')
+    if card.saldo > 0:
         Transaction.objects.create(
-            card=card,
-            tipo='retirada',
-            valor=round(saldo_restante, 2),
-            metodo='outro',
-            descricao=f'Saldo zerado por cancelamento — {motivo}',
-            operador=request.user,
+            card=card, tipo='retirada', valor=card.saldo, metodo='outro', origem='caixa',
+            descricao=f'Saldo zerado por cancelamento — {motivo}'[:255], operador=request.user,
         )
-
-    # Bloquear e limpar dados do cartão (libera para reutilização)
     card.bloqueado = True
     card.motivo_bloqueio = motivo
-    card.saldo = 0
-    card.nome = ''
-    card.cpf = ''
-    card.telefone = ''
+    card.saldo = D('0.00')
+    card.nome = card.cpf = card.telefone = ''
     card.is_temporary = False
     card.user = None
     card.save()
-
     return JsonResponse({'success': True, 'message': 'Cartão cancelado e liberado para reutilização'})
 
 
 # ===== Transferir Saldo =====
 @login_required
 @require_POST
+@json_api
+@transaction.atomic
 def api_transfer_balance(request):
-    """Transfere saldo de um cartão para outro."""
-    if request.user.user_type not in ['admin', 'caixa']:
+    """Bloqueia os dois cartões em ordem de ID para evitar deadlocks."""
+    if request.user.user_type not in ('admin', 'caixa'):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
-    data = json.loads(request.body)
-    from_card_id = data.get('from_card_id')
-    to_qr_data = data.get('to_qr_data', '').strip()
-
-    if not from_card_id or not to_qr_data:
-        return JsonResponse({'error': 'Dados incompletos'}, status=400)
-
+    data = request.json_data
+    from_id = positive_id(data.get('from_card_id'))
     try:
-        from_card = Card.objects.get(id=from_card_id)
-    except Card.DoesNotExist:
-        return JsonResponse({'error': 'Cartão de origem não encontrado'}, status=404)
-
-    try:
-        to_card = Card.objects.get(qr_code_data=to_qr_data)
+        to_id = Card.objects.values_list('pk', flat=True).get(qr_code_data=data.get('to_qr_data', ''))
     except Card.DoesNotExist:
         return JsonResponse({'error': 'Cartão de destino não encontrado'}, status=404)
-
-    if to_card.bloqueado:
-        return JsonResponse({'error': 'O cartão de destino está cancelado'}, status=400)
-
-    if from_card.id == to_card.id:
-        return JsonResponse({'error': 'Não é possível transferir para o mesmo cartão'}, status=400)
-
-    saldo = float(from_card.saldo)
-    if saldo <= 0:
-        return JsonResponse({'error': 'O cartão de origem não tem saldo'}, status=400)
-
-    # Transferir
-    from_card.saldo = 0
-    from_card.save()
-    to_card.saldo += round(saldo, 2)
-    to_card.save()
-
-    # Registrar transações
+    if from_id == to_id:
+        raise InvalidInput('Não é possível transferir para o mesmo cartão.')
+    cards = {card.pk: card for card in Card.objects.select_for_update().filter(
+        pk__in=[from_id, to_id]).order_by('pk')}
+    if from_id not in cards or to_id not in cards:
+        return JsonResponse({'error': 'Cartão não encontrado'}, status=404)
+    from_card, to_card = cards[from_id], cards[to_id]
+    if from_card.bloqueado:
+        raise InvalidInput('O cartão de origem está cancelado.')
+    saldo = money(from_card.saldo)
+    _validate_credit(to_card, saldo)
+    from_card.saldo = D('0.00')
+    to_card.saldo += saldo
+    from_card.save(update_fields=['saldo'])
+    to_card.save(update_fields=['saldo'])
     to_nome = to_card.nome if to_card.is_temporary else (to_card.user.get_full_name() if to_card.user else 'N/A')
-    from_nome = from_card.nome or 'Cartão sem nome'
-
+    from_nome = from_card.nome or (from_card.user.get_full_name() if from_card.user else 'Cartão sem nome')
     Transaction.objects.create(
-        card=from_card,
-        tipo='retirada',
-        valor=round(saldo, 2),
-        metodo='outro',
-        descricao=f'Transferência para cartão de {to_nome}',
-        operador=request.user,
+        card=from_card, tipo='retirada', valor=saldo, metodo='outro', origem='caixa',
+        descricao=f'Transferência para cartão de {to_nome}'[:255], operador=request.user,
     )
     Transaction.objects.create(
-        card=to_card,
-        tipo='deposito',
-        valor=round(saldo, 2),
-        metodo='outro',
-        origem='caixa',
-        descricao=f'Transferência recebida do cartão de {from_nome}',
-        operador=request.user,
+        card=to_card, tipo='deposito', valor=saldo, metodo='outro', origem='caixa',
+        descricao=f'Transferência recebida do cartão de {from_nome}'[:255], operador=request.user,
     )
-
-    return JsonResponse({
-        'success': True,
-        'valor_transferido': str(round(saldo, 2)),
-        'novo_saldo_destino': str(to_card.saldo),
-    })
+    return JsonResponse({'success': True, 'valor_transferido': str(saldo),
+                         'novo_saldo_destino': str(to_card.saldo)})
 
 
 # ===== Integração Asaas =====
-import requests as http_requests
-from django.views.decorators.csrf import csrf_exempt
-from django.conf import settings as django_settings
-from decimal import Decimal
-from datetime import date, timedelta
-from .models import Recarga
 
 
 def _asaas_headers():
@@ -478,9 +390,6 @@ def _get_or_create_asaas_customer(user):
 
     url = _asaas_url('customers')
     headers = _asaas_headers()
-    print(f'[ASAAS] POST {url}')
-    print(f'[ASAAS] API KEY (primeiros 15 chars): {django_settings.ASAAS_API_KEY[:15]}...')
-    print(f'[ASAAS] Payload: {payload}')
 
     resp = http_requests.post(
         url,
@@ -489,8 +398,6 @@ def _get_or_create_asaas_customer(user):
         timeout=15,
     )
 
-    print(f'[ASAAS] Status: {resp.status_code}')
-    print(f'[ASAAS] Response: {resp.text[:500]}')
 
     try:
         data = resp.json()
@@ -507,19 +414,14 @@ def _get_or_create_asaas_customer(user):
 
 @login_required
 @require_POST
+@json_api
 def api_asaas_create_payment(request):
     """Cria cobrança PIX no Asaas e retorna QR Code."""
     if request.user.user_type not in ('cliente', 'admin'):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
-    data = json.loads(request.body)
-    valor = data.get('valor', 0)
-    try:
-        valor = float(valor)
-        if valor < 1.00:
-            return JsonResponse({'error': 'Valor mínimo é R$ 1,00'}, status=400)
-    except (ValueError, TypeError):
-        return JsonResponse({'error': 'Valor inválido'}, status=400)
+    data = request.json_data
+    valor = money(data.get('valor'), minimum=D('1.00'))
 
     # Criar customer no Asaas se necessário
     try:
@@ -532,7 +434,7 @@ def api_asaas_create_payment(request):
     payment_payload = {
         'customer': customer_id,
         'billingType': 'PIX',
-        'value': valor,
+        'value': float(valor),  # Somente serialização da API; cálculos locais usam Decimal.
         'dueDate': due_date,
         'description': f'Recarga GFood - R$ {valor:.2f}',
     }
@@ -594,7 +496,7 @@ def api_asaas_create_payment(request):
     recarga = Recarga.objects.create(
         card=card,
         user=request.user,
-        valor=Decimal(str(valor)),
+        valor=valor,
         asaas_payment_id=payment['id'],
         status='pendente',
     )
@@ -609,52 +511,53 @@ def api_asaas_create_payment(request):
 
 
 @csrf_exempt
+@require_POST
 def api_asaas_webhook(request):
-    """Recebe notificações do Asaas quando o pagamento é confirmado."""
-    if request.method == 'GET':
-        return JsonResponse({'ok': True})  # Verificação de URL pelo Asaas
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Método não permitido'}, status=405)
-
-    # Validar token de autenticação
+    """Autentica antes de interpretar qualquer confirmação de pagamento."""
+    expected_token = django_settings.ASAAS_WEBHOOK_TOKEN
+    if not expected_token:
+        return JsonResponse({'error': 'Webhook não configurado'}, status=503)
     token = request.headers.get('asaas-access-token', '')
-    if token and token != django_settings.ASAAS_WEBHOOK_TOKEN:
+    if not token or not constant_time_compare(token, expected_token):
         return JsonResponse({'error': 'Token inválido'}, status=401)
+    return _process_asaas_webhook(request)
 
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON inválido'}, status=400)
 
-    event = data.get('event', '')
-    payment = data.get('payment', {})
-    payment_id = payment.get('id', '')
+@json_api
+@transaction.atomic
+def _process_asaas_webhook(request):
+    data = request.json_data
+    event = data.get('event')
+    if event not in ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'):
+        return JsonResponse({'ok': True})
+    payment = data.get('payment')
+    if not isinstance(payment, dict) or not isinstance(payment.get('id'), str) or not payment['id']:
+        raise InvalidInput('Pagamento inválido.')
+    amount = money(payment.get('value'))
+    if payment.get('billingType') != 'PIX' or payment.get('status') not in ('CONFIRMED', 'RECEIVED'):
+        raise InvalidInput('Confirmação PIX inválida.')
 
-    if event in ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED') and payment_id:
-        try:
-            recarga = Recarga.objects.get(asaas_payment_id=payment_id, status='pendente')
-            # Creditar saldo
-            card = recarga.card
-            card.saldo += recarga.valor
-            card.save()
+    recarga = Recarga.objects.select_for_update().filter(asaas_payment_id=payment['id']).first()
+    if recarga is None:
+        return JsonResponse({'ok': True})  # Cobrança não pertence às recargas do app.
+    if amount != recarga.valor:
+        raise InvalidInput('Valor do pagamento não corresponde à recarga.')
+    if recarga.status != 'pendente':
+        return JsonResponse({'ok': True})  # CONFIRMED e RECEIVED creditam uma única vez.
 
-            # Marcar como pago
-            recarga.status = 'pago'
-            recarga.save()
-
-            # Criar transação
-            Transaction.objects.create(
-                card=card,
-                tipo='deposito',
-                valor=recarga.valor,
-                metodo='pix',
-                origem='app',
-                descricao='Recarga via PIX (Asaas)',
-                operador=recarga.user,
-            )
-        except Recarga.DoesNotExist:
-            pass  # Pagamento já processado ou não encontrado
-
+    card = Card.objects.select_for_update().get(pk=recarga.card_id)
+    if card.bloqueado or card.user_id != recarga.user_id:
+        return JsonResponse({'error': 'Cartão indisponível para esta recarga'}, status=409)
+    if card.saldo + recarga.valor > MAX_AMOUNT:
+        raise InvalidInput('Saldo máximo excedido.')
+    card.saldo += recarga.valor
+    card.save(update_fields=['saldo'])
+    recarga.status = 'pago'
+    recarga.save(update_fields=['status'])
+    Transaction.objects.create(
+        card=card, tipo='deposito', valor=recarga.valor, metodo='pix', origem='app',
+        descricao='Recarga via PIX (Asaas)', operador_id=recarga.user_id,
+    )
     return JsonResponse({'ok': True})
 
 

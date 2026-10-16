@@ -6,7 +6,8 @@ function getCookie(name) {
     });
     return val;
 }
-const csrftoken = getCookie('csrftoken');
+const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+    || getCookie('csrftoken');
 
 function showToast(msg, type = 'success') {
     const t = document.getElementById('toast');
