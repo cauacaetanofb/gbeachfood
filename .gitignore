@@ -83,6 +83,3 @@ Desktop.ini
 $RECYCLE.BIN/
 
 # Migrations, static/, templates/ e arquivos de deploy devem ser versionados.
-
-# Documentacao local (temporariamente fora do Git)
-/docs/
