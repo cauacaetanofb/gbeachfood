@@ -475,8 +475,6 @@ node tests/login_recovery.test.cjs
 
 A configuração de testes ignora `.env`, usa SQLite em memória, senhas de teste e e-mail em memória. Os testes da API Asaas simulam as chamadas externas. Dois testes de concorrência exigem PostgreSQL e são ignorados no SQLite. Para executá-los, forneça `TEST_DATABASE_URL` de um ambiente PostgreSQL exclusivo de testes (com permissão de criar o banco de teste) ao executar a mesma suíte; não use credenciais de produção.
 
-O plano, as etapas aplicadas e as limitações de validação estão em [docs/PLANO_CORRECOES.md](docs/PLANO_CORRECOES.md).
-
 ---
 
 ## 🔌 API Endpoints
