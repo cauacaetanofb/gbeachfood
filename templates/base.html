@@ -20,6 +20,8 @@
 </head>
 
 <body>
+    <!-- Token para chamadas JavaScript, inclusive quando o CSRF fica na sessão. -->
+    <div hidden>{% csrf_token %}</div>
     <div class="app-wrapper">
         {% block content %}{% endblock %}
 

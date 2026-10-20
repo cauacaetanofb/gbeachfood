@@ -1,0 +1,34 @@
+# Apenas código necessário para construir a aplicação.
+**
+!Dockerfile
+!.dockerignore
+!.gcloudignore
+!requirements.txt
+!manage.py
+!gfood/
+!gfood/**
+!accounts/
+!accounts/**
+!cards/
+!cards/**
+!orders/
+!orders/**
+!products/
+!products/**
+!reports/
+!reports/**
+!templates/
+!templates/**
+!static/
+!static/**
+
+# Exclusões prevalecem mesmo dentro das pastas permitidas.
+**/__pycache__/**
+**/*.py[cod]
+**/.env
+**/.env.*
+**/*.sqlite*
+**/*.pem
+**/*.key
+**/*.log
+**/.git/**

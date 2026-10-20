@@ -1,40 +1,38 @@
 // Service Worker — GFood PWA
-const CACHE_NAME = 'gfood-v3';
+const CACHE_NAME = 'gfood-v4';
 
-// Instala o Service Worker e faz cache dos recursos essenciais
 self.addEventListener('install', event => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => {
-            return cache.addAll([
-                '/',
-                '/static/css/custom.css',
-                '/static/js/base.js',
-            ]);
-        })
+        caches.open(CACHE_NAME).then(cache => cache.addAll([
+            '/static/css/custom.css',
+            '/static/js/base.js',
+        ]))
     );
     self.skipWaiting();
 });
 
-// Ativa e limpa caches antigos
 self.addEventListener('activate', event => {
     event.waitUntil(
-        caches.keys().then(keys =>
-            Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-        )
+        caches.keys().then(keys => Promise.all(
+            keys.filter(key => key.startsWith('gfood-') && key !== CACHE_NAME)
+                .map(key => caches.delete(key))
+        )).then(() => self.clients.claim())
     );
-    self.clients.claim();
 });
 
-// Estratégia: Network-first (tenta a rede, se falhar usa o cache)
+// Somente estáticos: páginas com tokens CSRF, dados pessoais e APIs usam a rede.
 self.addEventListener('fetch', event => {
+    const url = new URL(event.request.url);
+    if (event.request.method !== 'GET' || url.origin !== self.location.origin
+        || !url.pathname.startsWith('/static/')) return;
+
     event.respondWith(
-        fetch(event.request)
-            .then(response => {
-                // Cacheia uma cópia da resposta para uso offline
+        fetch(event.request).then(response => {
+            if (response.ok) {
                 const clone = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-                return response;
-            })
-            .catch(() => caches.match(event.request))
+                event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone)));
+            }
+            return response;
+        }).catch(async () => (await caches.match(event.request)) || Response.error())
     );
 });

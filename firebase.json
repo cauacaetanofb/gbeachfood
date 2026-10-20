@@ -1,0 +1,31 @@
+{
+  "hosting": {
+    "site": "gbeachfood",
+    "public": "firebase-public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "private, no-store"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "gbeachfood",
+          "region": "southamerica-east1"
+        }
+      }
+    ]
+  }
+}
