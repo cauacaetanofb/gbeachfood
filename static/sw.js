@@ -1,5 +1,5 @@
 // Service Worker — GFood PWA
-const CACHE_NAME = 'gfood-v4';
+const CACHE_NAME = 'gfood-v5';
 
 self.addEventListener('install', event => {
     event.waitUntil(

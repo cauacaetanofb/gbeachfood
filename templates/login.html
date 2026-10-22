@@ -1,11 +1,17 @@
 {% extends 'base.html' %}
-{% block title %}GFood — Login{% endblock %}
+{% block title %}GBeachFood — Login{% endblock %}
+
+{% block body_class %}auth-page{% endblock %}
 
 {% block content %}
 <div class="login-container">
-    <div class="login-logo">GFood</div>
-    <div class="login-subtitle">Sistema do Restaurante</div>
-
+    {% include 'partials/auth_intro.html' %}
+    <section class="auth-form-panel" aria-labelledby="auth-title">
+        <div class="auth-heading">
+            <span class="eyebrow">BEM-VINDO DE VOLTA</span>
+            <h2 id="auth-title">Que bom ter você aqui!</h2>
+            <p>Entre na sua conta e aproveite o parque.</p>
+        </div>
     <div class="login-card">
         {% if form.non_field_errors %}
         <div class="alert alert-error">
@@ -18,43 +24,44 @@
         <form method="post">
             {% csrf_token %}
             <div class="field">
-                <label class="label">{{ form.username.label }}</label>
+                <label class="label" for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
                 <div class="control">
                     {{ form.username }}
                 </div>
             </div>
             <div class="field">
-                <label class="label">{{ form.password.label }}</label>
+                <label class="label" for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
                 <div class="control">
                     {{ form.password }}
                 </div>
             </div>
             <div class="field" style="margin-top: 1.5rem;">
-                <button type="submit" class="btn-primary">Entrar</button>
+                <button type="submit" class="btn-primary">Entrar na minha conta <span aria-hidden="true">→</span></button>
             </div>
         </form>
 
         <div style="text-align:center;margin:0.8rem 0 0.3rem;">
-            <a href="#" onclick="showForgotStep(1); return false;" style="color:#ffffff;font-size:0.85rem;">Esqueci minha senha</a>
+            <a href="#" onclick="showForgotStep(1); return false;" class="forgot-link">Esqueci minha senha</a>
         </div>
 
         <div class="link-register">
             Não tem conta? <a href="{% url 'register' %}">Cadastre-se</a>
         </div>
     </div>
+    </section>
 </div>
 
 <!-- Modal: Esqueci Minha Senha -->
 <div id="modal-forgot" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeForgot()"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeForgot()"></button>
 
         <!-- Etapa 1: Informar e-mail -->
         <div id="forgot-step-1">
             <h3>🔑 Recuperar Senha</h3>
             <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1rem;">Informe o e-mail cadastrado. Enviaremos um código de 6 dígitos.</p>
             <div class="field">
-                <label>E-mail</label>
+                <label for="fg-email">E-mail</label>
                 <input class="input" id="fg-email" type="email" placeholder="seu@email.com" required>
             </div>
             <button class="btn-primary" onclick="sendResetCode()" style="margin-top:0.5rem;">Enviar Código</button>
@@ -65,15 +72,15 @@
             <h3>🔐 Nova Senha</h3>
             <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1rem;">Digite o código recebido no e-mail e a nova senha.</p>
             <div class="field">
-                <label>Código (6 dígitos)</label>
+                <label for="fg-code">Código (6 dígitos)</label>
                 <input class="input" id="fg-code" maxlength="6" placeholder="000000" required style="text-align:center;font-size:1.5rem;letter-spacing:0.5rem;font-weight:bold;">
             </div>
             <div class="field">
-                <label>Nova Senha</label>
+                <label for="fg-new-pass">Nova Senha</label>
                 <input class="input" id="fg-new-pass" type="password" placeholder="Mínimo 8 caracteres" required>
             </div>
             <div class="field">
-                <label>Confirmar Nova Senha</label>
+                <label for="fg-new-pass2">Confirmar Nova Senha</label>
                 <input class="input" id="fg-new-pass2" type="password" placeholder="Confirme a nova senha" required>
             </div>
             <button class="btn-primary" onclick="resetPassword()" style="margin-top:0.5rem;">Alterar Senha</button>
@@ -114,7 +121,7 @@ function fgToast(msg, type) {
     el.textContent = msg;
     el.style.display = 'block';
     el.style.background = type === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)';
-    el.style.color = type === 'error' ? '#ef4444' : '#22c55e';
+    el.style.color = type === 'error' ? 'var(--danger)' : 'var(--success)';
 }
 
 async function sendResetCode() {

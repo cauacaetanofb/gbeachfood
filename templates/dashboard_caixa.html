@@ -1,10 +1,12 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}GFood — Caixa{% endblock %}
+{% block title %}GBeachFood — Caixa{% endblock %}
 
 {% block extra_head %}
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 {% endblock %}
+
+{% block body_class %}dashboard-page dashboard-caixa{% endblock %}
 
 {% block content %}
 {% include 'partials/admin_sidebar.html' %}
@@ -14,7 +16,7 @@
 <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
 <div id="sidebar" class="sidebar">
     <div class="sidebar-header">
-        <div class="logo">GFood</div>
+        <div class="logo">{% include 'partials/brand.html' %}</div>
         <div class="subtitle">{{ user.first_name|default:user.username }}</div>
     </div>
     <div class="sidebar-item active" id="nav-caixa" onclick="switchMode('caixa')">
@@ -43,13 +45,18 @@
 <!-- Header -->
 <div class="dash-header">
     <div style="display:flex;align-items:center;gap:0.5rem;">
-        <button class="btn-hamburger" onclick="toggleSidebar()">☰</button>
-        <div class="logo">GFood</div>
+        <button class="btn-hamburger" type="button" aria-label="Abrir menu" aria-controls="sidebar" onclick="toggleSidebar()">☰</button>
+        <div class="logo">{% include 'partials/brand.html' %}</div>
     </div>
     <div class="user-info">
         <span class="user-name">{{ user.first_name|default:user.username }}</span>
     </div>
 </div>
+
+<section class="dashboard-welcome" aria-labelledby="page-title">
+    <div><span class="eyebrow">ATENDIMENTO · CAIXA</span><h1 id="page-title">Um bom dia começa com boas-vindas.</h1><p>Emita cartões, consulte saldos e acompanhe o atendimento.</p></div>
+    <span class="welcome-note"><span aria-hidden="true">☀</span> Área da equipe</span>
+</section>
 
 <!-- ====== CAIXA MODE TABS ====== -->
 <div id="tabs-caixa" class="tabs-nav">
@@ -113,7 +120,7 @@
                 <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.8rem;">Escaneie o QR Code do cliente para pagar.</p>
                 <div class="dash-form">
                     <div class="field">
-                        <label>Código do Cartão</label>
+                        <label for="pay-qr-input">Código do Cartão</label>
                         <input class="input" id="pay-qr-input" placeholder="UUID do cartão">
                     </div>
                     <button class="btn-secondary" onclick="startScanner('pay')" style="margin-bottom:1rem;width:100%;">📷 Escanear QR Code</button>
@@ -158,23 +165,23 @@
             <div id="tc-qr-reader" style="margin-bottom:1rem;"></div>
 
             <div class="field">
-                <label>Nome do Cliente *</label>
+                <label for="tc-nome">Nome do Cliente *</label>
                 <input class="input" id="tc-nome" placeholder="Nome do cliente" required>
             </div>
             <div class="field">
-                <label>CPF (Opcional)</label>
+                <label for="tc-cpf">CPF (Opcional)</label>
                 <input class="input" id="tc-cpf" placeholder="000.000.000-00">
             </div>
             <div class="field">
-                <label>Telefone (Opcional)</label>
+                <label for="tc-telefone">Telefone (Opcional)</label>
                 <input class="input" id="tc-telefone" placeholder="(00) 00000-0000">
             </div>
             <div class="field">
-                <label>Valor Inicial (R$) *</label>
+                <label for="tc-valor">Valor Inicial (R$) *</label>
                 <input class="input" id="tc-valor" type="number" step="0.01" min="0.01" placeholder="0.00" required>
             </div>
             <div class="field">
-                <label>Forma de Pagamento *</label>
+                <label for="tc-metodo">Forma de Pagamento *</label>
                 <select id="tc-metodo" class="input"
                     style="background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.5em;font-size:0.85rem;">
                     <option value="pix">PIX</option>
@@ -203,7 +210,7 @@
         <h3>Gerenciar Saldo</h3>
         <div class="dash-form">
             <div class="field">
-                <label>Código do Cartão</label>
+                <label for="saldo-qr-input">Código do Cartão</label>
                 <input class="input" id="saldo-qr-input" placeholder="UUID do cartão">
             </div>
             <button class="btn-secondary" onclick="startScanner('saldo')" style="margin-bottom:1rem;width:100%;">📷
@@ -219,11 +226,11 @@
             </div>
             <div class="dash-form" style="margin-top:1rem;">
                 <div class="field">
-                    <label>Valor (R$)</label>
+                    <label for="saldo-valor">Valor (R$)</label>
                     <input class="input" id="saldo-valor" type="number" step="0.01" min="0.01" placeholder="0.00">
                 </div>
                 <div class="field">
-                    <label>Forma de Pagamento</label>
+                    <label for="saldo-metodo">Forma de Pagamento</label>
                     <select id="saldo-metodo" class="input"
                         style="background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.5em;font-size:0.85rem;">
                         <option value="pix">PIX</option>
@@ -247,7 +254,7 @@
         <h3>Consultar Saldo</h3>
         <div class="dash-form">
             <div class="field">
-                <label>Código do Cartão</label>
+                <label for="csaldo-qr-input">Código do Cartão</label>
                 <input class="input" id="csaldo-qr-input" placeholder="UUID do cartão">
             </div>
             <button class="btn-secondary" onclick="startScanner('csaldo')" style="margin-bottom:1rem;width:100%;">📷
@@ -273,7 +280,7 @@
             visualizar, transferir saldo ou cancelar o cartão.</p>
         <div class="dash-form">
             <div class="field">
-                <label>CPF do Cliente</label>
+                <label for="gc-cpf">CPF do Cliente</label>
                 <input class="input" id="gc-cpf" placeholder="000.000.000-00">
             </div>
             <button class="btn-primary" onclick="buscarCartoesCPF()" style="width:100%;margin-bottom:1rem;">🔍 Buscar
@@ -291,7 +298,7 @@
             </p>
             <div class="dash-form">
                 <div class="field">
-                    <label>Cartão de Destino (QR Code)</label>
+                    <label for="gc-transfer-to-qr">Cartão de Destino (QR Code)</label>
                     <input class="input" id="gc-transfer-to-qr" placeholder="UUID do cartão destino">
                 </div>
                 <button class="btn-secondary" onclick="startScanner('gctransfer')"

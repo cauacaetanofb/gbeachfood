@@ -143,7 +143,7 @@ projeto_restaurante/
 | **Django 5.2** | Framework backend (Python) |
 | **PostgreSQL** | Banco de dados em produção |
 | **SQLite** | Banco de dados em desenvolvimento |
-| **Bulma CSS** | Framework CSS para estilização |
+| **CSS próprio responsivo** | Identidade visual do parque, sem dependência de framework CSS |
 | **JavaScript (Vanilla)** | Frontend interativo (SPA-like) |
 | **QR Code (qrcode)** | Geração de QR Codes para cartões |
 | **Asaas API** | Gateway de pagamento (PIX) |

@@ -1,0 +1,11 @@
+{% load static %}
+<aside class="auth-intro">
+    <a class="auth-brand" href="{% url 'login' %}" aria-label="GBeachFood, início">{% include 'partials/brand.html' %}</a>
+    <div class="auth-story">
+        <span class="eyebrow">GURIRI BEACH ACQUA PARK</span>
+        <h1>Seu dia mais leve.<br><span>Até na hora de pedir.</span></h1>
+        <p>Sol, piscina e uma pausa gostosa. Seu cartão e seu saldo ficam por aqui, para você aproveitar cada momento.</p>
+    </div>
+    <img class="park-illustration" src="{% static 'images/park-scene.svg' %}" alt="" width="640" height="470">
+    <div class="auth-benefits"><span>Um cartão, tudo mais fácil</span><span>Recarga via Pix</span></div>
+</aside>

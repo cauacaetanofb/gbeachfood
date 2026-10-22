@@ -1,14 +1,16 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}GFood — Minha Conta{% endblock %}
+{% block title %}GBeachFood — Minha Conta{% endblock %}
+
+{% block body_class %}dashboard-page dashboard-cliente{% endblock %}
 
 {% block content %}
 {% include 'partials/admin_sidebar.html' %}
 <!-- Header -->
 <div class="dash-header">
     <div style="display:flex;align-items:center;gap:0.5rem;">
-        {% if is_admin %}<button class="btn-hamburger" onclick="toggleSidebar()">☰</button>{% endif %}
-        <div class="logo">GFood</div>
+        {% if is_admin %}<button class="btn-hamburger" type="button" aria-label="Abrir menu" aria-controls="sidebar" onclick="toggleSidebar()">☰</button>{% endif %}
+        <div class="logo">{% include 'partials/brand.html' %}</div>
     </div>
     <div class="user-info">
         <span class="user-name">{{ user.first_name|default:user.username }}</span>
@@ -16,17 +18,22 @@
     </div>
 </div>
 
+<section class="dashboard-welcome" aria-labelledby="page-title">
+    <div><span class="eyebrow">SEU DIA NO PARQUE</span><h1 id="page-title">Mais diversão, menos preocupação.</h1><p>Seu cartão, saldo e recargas em um só lugar.</p></div>
+    <span class="welcome-note"><span aria-hidden="true">☀</span> Tudo pronto para aproveitar</span>
+</section>
+
 <!-- Tabs -->
 <div class="tabs-nav">
-    <button class="tab-btn active" onclick="switchTab('qrcode')">Meu QR</button>
+    <button class="tab-btn active" onclick="switchTab('qrcode')">Meu cartão</button>
     <button class="tab-btn" onclick="switchTab('saldo')">Saldo</button>
-    <button class="tab-btn" onclick="switchTab('adicionar')">Adicionar</button>
+    <button class="tab-btn" onclick="switchTab('adicionar')">Recarregar</button>
 </div>
 
 <!-- Tab: QR Code -->
 <div id="tab-qrcode" class="tab-content active">
-    <div class="surface-card" style="text-align:center;">
-        <h3>Meu Cartão Virtual</h3>
+    <div class="surface-card virtual-card" style="text-align:center;">
+        <span class="eyebrow">SEU PASSE PARA UMA PAUSA GOSTOSA</span><h3>Meu cartão virtual</h3>
         <div class="qr-container">
             <div id="qr-loading" class="loading"><div class="spinner"></div></div>
             <img id="my-qr-img" src="" alt="QR Code" style="display:none;">
@@ -38,7 +45,7 @@
 
 <!-- Tab: Saldo -->
 <div id="tab-saldo" class="tab-content">
-    <div class="surface-card">
+    <div class="surface-card balance-card">
         <div class="balance-display">
             <div class="balance-label">Seu Saldo</div>
             <div class="balance-value" id="my-saldo">R$ 0,00</div>
@@ -65,7 +72,7 @@
                 <button class="btn-secondary" onclick="setValor(100)" style="flex:1;">R$ 100</button>
             </div>
             <div class="field">
-                <label>Outro valor (R$)</label>
+                <label for="add-valor">Outro valor (R$)</label>
                 <input class="input" id="add-valor" type="number" step="0.01" min="1" placeholder="0.00">
             </div>
             <button class="btn-primary" onclick="gerarPixRecarga()" id="btn-gerar-pix" style="width:100%;">Gerar PIX</button>

@@ -1,19 +1,26 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}GFood — Admin{% endblock %}
+{% block title %}GBeachFood — Admin{% endblock %}
+
+{% block body_class %}dashboard-page dashboard-admin{% endblock %}
 
 {% block content %}
 {% include 'partials/admin_sidebar.html' %}
 <!-- Header -->
 <div class="dash-header">
     <div style="display:flex;align-items:center;gap:0.5rem;">
-        {% if is_admin %}<button class="btn-hamburger" onclick="toggleSidebar()">☰</button>{% endif %}
-        <div class="logo">GFood</div>
+        {% if is_admin %}<button class="btn-hamburger" type="button" aria-label="Abrir menu" aria-controls="sidebar" onclick="toggleSidebar()">☰</button>{% endif %}
+        <div class="logo">{% include 'partials/brand.html' %}</div>
     </div>
     <div class="user-info">
         <span class="user-name" onclick="openMyProfile()" style="cursor:pointer;text-decoration:underline dotted;">⚙️ {{ user.first_name|default:user.username }}</span>
     </div>
 </div>
+
+<section class="dashboard-welcome" aria-labelledby="page-title">
+    <div><span class="eyebrow">GESTÃO DO RESTAURANTE</span><h1 id="page-title">Tudo organizado. Dia mais tranquilo.</h1><p>Cuide do cardápio, da equipe e acompanhe os resultados.</p></div>
+    <span class="welcome-note"><span aria-hidden="true">☀</span> Painel de administração</span>
+</section>
 
 <!-- Tabs -->
 <div class="tabs-nav">
@@ -111,20 +118,20 @@
 <!-- Modal: Novo Produto -->
 <div id="modal-product" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeModal('modal-product')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-product')"></button>
         <h3 id="modal-product-title">Novo Produto</h3>
         <form id="form-product" class="dash-form" onsubmit="return saveProduct(event)">
             <input type="hidden" id="product-id" value="">
             <div class="field">
-                <label>Nome</label>
+                <label for="p-nome">Nome</label>
                 <input class="input" id="p-nome" placeholder="Nome do produto" required>
             </div>
             <div class="field">
-                <label>Preço (R$)</label>
+                <label for="p-preco">Preço (R$)</label>
                 <input class="input" id="p-preco" type="number" step="0.01" placeholder="0.00" required>
             </div>
             <div class="field">
-                <label>Categoria</label>
+                <label for="p-categoria">Categoria</label>
                 <select class="input" id="p-categoria" style="background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.5em;font-size:0.85rem;">
                     <option value="">Selecione...</option>
                     <option value="Bebidas">Bebidas</option>
@@ -138,7 +145,7 @@
                 </select>
             </div>
             <div class="field">
-                <label>Descrição</label>
+                <label for="p-descricao">Descrição</label>
                 <textarea class="input" id="p-descricao" rows="2" placeholder="Descrição (opcional)"></textarea>
             </div>
             <div class="field">
@@ -162,19 +169,19 @@
 <!-- Modal: Novo Funcionário -->
 <div id="modal-staff" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeModal('modal-staff')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-staff')"></button>
         <h3>Novo Funcionário</h3>
         <form id="form-staff" class="dash-form" onsubmit="return saveStaff(event)">
             <div class="field">
-                <label>Nome</label>
+                <label for="s-nome">Nome</label>
                 <input class="input" id="s-nome" placeholder="Nome" required>
             </div>
             <div class="field">
-                <label>Usuário</label>
+                <label for="s-username">Usuário</label>
                 <input class="input" id="s-username" placeholder="Nome de usuário" required>
             </div>
             <div class="field">
-                <label>Tipo</label>
+                <label for="s-type">Tipo</label>
                 <select id="s-type" class="input">
                     <option value="admin">Administrador</option>
                     <option value="balcao">Balcão</option>
@@ -182,11 +189,11 @@
                 </select>
             </div>
             <div class="field">
-                <label>Senha</label>
+                <label for="s-pass1">Senha</label>
                 <input class="input" id="s-pass1" type="password" placeholder="Senha" required>
             </div>
             <div class="field">
-                <label>Confirmar Senha</label>
+                <label for="s-pass2">Confirmar Senha</label>
                 <input class="input" id="s-pass2" type="password" placeholder="Confirmar" required>
             </div>
             <button type="submit" class="btn-primary" style="margin-top:0.5rem;">Criar</button>
@@ -197,24 +204,24 @@
 <!-- Modal: Editar Cliente -->
 <div id="modal-client" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeModal('modal-client')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-client')"></button>
         <h3>Editar Cliente</h3>
         <form id="form-client" class="dash-form" onsubmit="return saveClient(event)">
             <input type="hidden" id="c-id" value="">
             <div class="field">
-                <label>Nome</label>
+                <label for="c-nome">Nome</label>
                 <input class="input" id="c-nome" placeholder="Nome" required>
             </div>
             <div class="field">
-                <label>E-mail</label>
+                <label for="c-email">E-mail</label>
                 <input class="input" id="c-email" type="email" placeholder="E-mail">
             </div>
             <div class="field">
-                <label>CPF</label>
+                <label for="c-cpf">CPF</label>
                 <input class="input" id="c-cpf" placeholder="000.000.000-00">
             </div>
             <div class="field">
-                <label>Telefone</label>
+                <label for="c-telefone">Telefone</label>
                 <input class="input" id="c-telefone" placeholder="(00) 00000-0000">
             </div>
             <button type="submit" class="btn-primary" style="margin-top:0.5rem;">Salvar</button>
@@ -225,7 +232,7 @@
 <!-- Modal: Transações do Cliente -->
 <div id="modal-transactions" class="modal-overlay">
     <div class="modal-box" style="max-height:85vh;">
-        <button class="modal-close" onclick="closeModal('modal-transactions')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-transactions')"></button>
         <h3 id="txn-title">Transações</h3>
         <div id="txn-saldo" style="text-align:center;margin-bottom:1rem;"></div>
         <div id="txn-list">
@@ -237,16 +244,16 @@
 <!-- Modal: Editar Funcionário -->
 <div id="modal-edit-staff" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeModal('modal-edit-staff')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-edit-staff')"></button>
         <h3>Editar Funcionário</h3>
         <form id="form-edit-staff" class="dash-form" onsubmit="return saveEditStaff(event)">
             <input type="hidden" id="es-id" value="">
             <div class="field">
-                <label>Nome</label>
+                <label for="es-nome">Nome</label>
                 <input class="input" id="es-nome" placeholder="Nome" required>
             </div>
             <div class="field">
-                <label>Tipo</label>
+                <label for="es-type">Tipo</label>
                 <select id="es-type" class="input">
                     <option value="admin">Administrador</option>
                     <option value="balcao">Balcão</option>
@@ -265,23 +272,23 @@
 <!-- Modal: Meu Perfil -->
 <div id="modal-profile" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" onclick="closeModal('modal-profile')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-profile')"></button>
         <h3>⚙️ Meu Perfil</h3>
         <form id="form-profile" class="dash-form" onsubmit="return saveProfile(event)">
             <div class="field">
-                <label>Nome</label>
+                <label for="pf-nome">Nome</label>
                 <input class="input" id="pf-nome" placeholder="Nome" required>
             </div>
             <div class="field">
-                <label>Usuário</label>
+                <label for="pf-username">Usuário</label>
                 <input class="input" id="pf-username" placeholder="Usuário" required>
             </div>
             <div class="field">
-                <label>E-mail</label>
+                <label for="pf-email">E-mail</label>
                 <input class="input" id="pf-email" type="email" placeholder="E-mail">
             </div>
             <div class="field">
-                <label>CPF</label>
+                <label for="pf-cpf">CPF</label>
                 <input class="input" id="pf-cpf" placeholder="000.000.000-00" maxlength="14">
             </div>
             <div class="field">

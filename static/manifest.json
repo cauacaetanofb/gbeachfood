@@ -1,11 +1,11 @@
 {
-    "name": "GFood - Guriri Beach Acqua Park",
-    "short_name": "GFood",
+    "name": "GBeachFood - Guriri Beach Acqua Park",
+    "short_name": "GBeachFood",
     "description": "Sistema de restaurante do Guriri Beach Acqua Park",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#08121f",
-    "theme_color": "#009fe3",
+    "background_color": "#f4f8f7",
+    "theme_color": "#087f8c",
     "orientation": "portrait",
     "icons": [
         {

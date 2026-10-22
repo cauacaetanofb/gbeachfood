@@ -3,15 +3,14 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>{% block title %}GFood{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}GBeachFood{% endblock %}</title>
     <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#009fe3">
+    <meta name="theme-color" content="#087f8c">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
     {% load static %}
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="{% static 'images/icon-192.png' %}">
@@ -19,11 +18,12 @@
     {% block extra_head %}{% endblock %}
 </head>
 
-<body>
+<body class="{% block body_class %}{% endblock %}">
+    <a class="skip-link" href="#main-content">Ir para o conteúdo</a>
     <!-- Token para chamadas JavaScript, inclusive quando o CSRF fica na sessão. -->
     <div hidden>{% csrf_token %}</div>
     <div class="app-wrapper">
-        {% block content %}{% endblock %}
+        <main id="main-content" tabindex="-1">{% block content %}{% endblock %}</main>
 
         <!-- Botão Instalar PWA -->
         <div id="install-banner" class="install-banner">
@@ -36,14 +36,14 @@
             </button>
         </div>
 
-        <!-- GFood Footer -->
+        <!-- GBeachFood Footer -->
         <footer class="app-footer">
             <div class="footer-content">
-                <img src="{% static 'images/logo-guriri.png' %}" alt="Guriri Beach Acqua Park" class="footer-logo"
-                    onerror="this.style.display='none'">
+                <div class="footer-brand">{% include 'partials/brand.html' %}</div>
+                <p class="footer-caption">Guriri Beach Acqua Park · Mais tempo para aproveitar.</p>
                 <div class="footer-links">
-                    <a href="https://www.guriribeach.com/atendimento/" target="_blank">Site Oficial</a>
-                    <a href="https://www.instagram.com/guriribeachoficial/" target="_blank">Instagram</a>
+                    <a href="https://www.guriribeach.com/atendimento/" target="_blank" rel="noopener noreferrer">Site Oficial</a>
+                    <a href="https://www.instagram.com/guriribeachoficial/" target="_blank" rel="noopener noreferrer">Instagram</a>
                 </div>
                 <div class="footer-dev">
                     Desenvolvido por: <a href="mailto:cauacaetanofb@gmail.com">cauacaetanofb@gmail.com</a>
@@ -51,7 +51,7 @@
             </div>
         </footer>
     </div>
-    <div id="toast" class="toast"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="{% static 'js/base.js' %}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>

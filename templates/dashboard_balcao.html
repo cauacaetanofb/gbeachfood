@@ -1,24 +1,31 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}GFood — Balcão{% endblock %}
+{% block title %}GBeachFood — Balcão{% endblock %}
 
 {% block extra_head %}
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 {% endblock %}
+
+{% block body_class %}dashboard-page dashboard-balcao{% endblock %}
 
 {% block content %}
 {% include 'partials/admin_sidebar.html' %}
 <!-- Header -->
 <div class="dash-header">
     <div style="display:flex;align-items:center;gap:0.5rem;">
-        {% if is_admin %}<button class="btn-hamburger" onclick="toggleSidebar()">☰</button>{% endif %}
-        <div class="logo">GFood</div>
+        {% if is_admin %}<button class="btn-hamburger" type="button" aria-label="Abrir menu" aria-controls="sidebar" onclick="toggleSidebar()">☰</button>{% endif %}
+        <div class="logo">{% include 'partials/brand.html' %}</div>
     </div>
     <div class="user-info">
         <span class="user-name">{{ user.first_name|default:user.username }}</span>
         {% if not is_admin %}<a href="{% url 'logout' %}" class="btn-logout">Sair</a>{% endif %}
     </div>
 </div>
+
+<section class="dashboard-welcome" aria-labelledby="page-title">
+    <div><span class="eyebrow">ATENDIMENTO · BALCÃO</span><h1 id="page-title">Uma pausa gostosa no dia.</h1><p>Escolha os produtos e finalize o pedido com o cartão do cliente.</p></div>
+    <span class="welcome-note"><span aria-hidden="true">☀</span> Área da equipe</span>
+</section>
 
 <div class="tabs-nav">
     <button class="tab-btn active" onclick="switchTab('cardapio')">Cardápio</button>
@@ -66,7 +73,7 @@
                 <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.8rem;">Escaneie o QR Code do cliente para pagar.</p>
                 <div class="dash-form">
                     <div class="field">
-                        <label>Código do Cartão</label>
+                        <label for="pay-qr-input">Código do Cartão</label>
                         <input class="input" id="pay-qr-input" placeholder="UUID do cartão">
                     </div>
                     <button class="btn-secondary" onclick="startScanner('pay')" style="margin-bottom:1rem;width:100%;">📷 Escanear QR Code</button>
@@ -100,7 +107,7 @@
         <h3>Consultar Saldo</h3>
         <div class="dash-form">
             <div class="field">
-                <label>Código do Cartão</label>
+                <label for="saldo-qr-input">Código do Cartão</label>
                 <input class="input" id="saldo-qr-input" placeholder="UUID do cartão">
             </div>
             <button class="btn-secondary" onclick="startScanner('saldo')" style="margin-bottom:1rem;width:100%;">📷 Escanear QR Code</button>

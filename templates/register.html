@@ -1,11 +1,17 @@
 {% extends 'base.html' %}
-{% block title %}GFood — Cadastro{% endblock %}
+{% block title %}GBeachFood — Cadastro{% endblock %}
+
+{% block body_class %}auth-page{% endblock %}
 
 {% block content %}
 <div class="login-container">
-    <div class="login-logo">GFood</div>
-    <div class="login-subtitle">Criar Conta de Cliente</div>
-
+    {% include 'partials/auth_intro.html' %}
+    <section class="auth-form-panel" aria-labelledby="auth-title">
+        <div class="auth-heading">
+            <span class="eyebrow">VAMOS COMEÇAR</span>
+            <h2 id="auth-title">Seu dia de diversão começa aqui.</h2>
+            <p>Crie sua conta para usar seu cartão e recarregar com Pix.</p>
+        </div>
     <div class="login-card">
         {% if form.errors %}
         <div class="alert alert-error">
@@ -21,7 +27,7 @@
             {% csrf_token %}
             {% for field in form %}
             <div class="field">
-                <label class="label">{{ field.label }}</label>
+                <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 <div class="control">
                     {{ field }}
                 </div>
@@ -36,5 +42,6 @@
             Já tem conta? <a href="{% url 'login' %}">Fazer Login</a>
         </div>
     </div>
+    </section>
 </div>
 {% endblock %}
