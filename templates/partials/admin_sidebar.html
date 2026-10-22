@@ -7,20 +7,20 @@
         <div class="subtitle">{{ user.first_name|default:user.username }} — Admin</div>
     </div>
     <a href="{% url 'dashboard' %}" class="sidebar-item {% if active_page == 'admin' %}active{% endif %}">
-        <span class="icon">⚙️</span> Painel Admin
+        <span class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#grid"></use></svg></span> Painel Admin
     </a>
     <a href="{% url 'dashboard' %}?as=caixa" class="sidebar-item {% if active_page == 'caixa' %}active{% endif %}">
-        <span class="icon">💰</span> Caixa
+        <span class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#wallet"></use></svg></span> Caixa
     </a>
     <a href="{% url 'dashboard' %}?as=balcao" class="sidebar-item {% if active_page == 'balcao' %}active{% endif %}">
-        <span class="icon">🍽️</span> Balcão
+        <span class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#food"></use></svg></span> Balcão
     </a>
     <a href="{% url 'dashboard' %}?as=cliente" class="sidebar-item {% if active_page == 'cliente' %}active{% endif %}">
-        <span class="icon">👤</span> Meu Cartão
+        <span class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#profile"></use></svg></span> Meu Cartão
     </a>
     <div style="flex:1;"></div>
     <a href="{% url 'logout' %}" class="sidebar-item" style="color:var(--danger);">
-        <span class="icon">🚪</span> Sair
+        <span class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#logout"></use></svg></span> Sair
     </a>
 </div>
 <script>

@@ -39,18 +39,18 @@ function renderMenu() {
     if (selectedCat) products = products.filter(p => p.categoria === selectedCat);
     if (search) products = products.filter(p => p.nome.toLowerCase().includes(search));
     if (!products.length) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">🍕</div><p>Nenhum produto encontrado</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#food"></use></svg></div><p>Nenhum produto encontrado</p></div>';
         return;
     }
     container.innerHTML = products.map(p => `
         <div class="product-item">
-            ${p.imagem ? `<img src="${p.imagem}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;flex-shrink:0;">` : `<div style="width:48px;height:48px;border-radius:10px;background:var(--bg-dark);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">🍽️</div>`}
+            ${p.imagem ? `<img src="${p.imagem}" alt="" style="width:48px;height:48px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : `<div style="width:48px;height:48px;border-radius:6px;background:var(--bg-dark);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#food"></use></svg></div>`}
             <div class="product-info" style="flex:1;min-width:0;">
                 <div class="name">${p.nome}</div>
                 <div class="price">R$ ${parseFloat(p.preco).toFixed(2)}</div>
                 <div class="category">${p.categoria}</div>
             </div>
-            <button class="btn-add-cart" onclick='addToCart(${JSON.stringify(p)})'>+</button>
+            <button class="btn-add-cart" aria-label="Adicionar ao carrinho" onclick='addToCart(${JSON.stringify(p)})'><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#plus"></use></svg></button>
         </div>
     `).join('');
 }
@@ -98,7 +98,7 @@ function renderCart() {
     const container = document.getElementById('cart-items');
     const totalSection = document.getElementById('cart-total-section');
     if (!cart.length) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">🛒</div><p>Carrinho vazio</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cart"></use></svg></div><p>Carrinho vazio</p></div>';
         totalSection.style.display = 'none';
         return;
     }
@@ -110,9 +110,9 @@ function renderCart() {
                 <div class="price">R$ ${(parseFloat(c.preco) * c.quantidade).toFixed(2)}</div>
             </div>
             <div class="cart-qty">
-                <button onclick="changeQty(${c.id}, -1)">−</button>
+                <button aria-label="Diminuir quantidade" onclick="changeQty(${c.id}, -1)"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#minus"></use></svg></button>
                 <span>${c.quantidade}</span>
-                <button onclick="changeQty(${c.id}, 1)">+</button>
+                <button aria-label="Aumentar quantidade" onclick="changeQty(${c.id}, 1)"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#plus"></use></svg></button>
             </div>
         </div>
     `).join('');

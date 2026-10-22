@@ -13,7 +13,7 @@
 <!-- Header -->
 <div class="dash-header">
     <div style="display:flex;align-items:center;gap:0.5rem;">
-        {% if is_admin %}<button class="btn-hamburger" type="button" aria-label="Abrir menu" aria-controls="sidebar" onclick="toggleSidebar()">☰</button>{% endif %}
+        {% if is_admin %}<button class="btn-hamburger" type="button" aria-label="Abrir menu" aria-controls="sidebar" onclick="toggleSidebar()"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#menu"></use></svg></button>{% endif %}
         <div class="logo">{% include 'partials/brand.html' %}</div>
     </div>
     <div class="user-info">
@@ -24,7 +24,7 @@
 
 <section class="dashboard-welcome" aria-labelledby="page-title">
     <div><span class="eyebrow">ATENDIMENTO · BALCÃO</span><h1 id="page-title">Uma pausa gostosa no dia.</h1><p>Escolha os produtos e finalize o pedido com o cartão do cliente.</p></div>
-    <span class="welcome-note"><span aria-hidden="true">☀</span> Área da equipe</span>
+    <span class="welcome-note"><span aria-hidden="true"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#sun"></use></svg></span> Área da equipe</span>
 </section>
 
 <div class="tabs-nav">
@@ -37,7 +37,7 @@
 <div id="tab-cardapio" class="tab-content active">
     <div class="surface-card">
         <h3>Cardápio</h3>
-        <input class="input" id="search-menu" placeholder="🔍 Buscar produto..." oninput="renderMenu()" style="margin-bottom:0.8rem;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.9em;font-size:0.85rem;width:100%;box-sizing:border-box;">
+        <input class="input search-input" id="search-menu" placeholder="Buscar produto..." oninput="renderMenu()" style="margin-bottom:0.8rem;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.9em;font-size:0.85rem;width:100%;box-sizing:border-box;">
         <div id="cat-filter" style="display:flex;gap:0.4rem;overflow-x:auto;padding-bottom:0.6rem;margin-bottom:0.8rem;scrollbar-width:none;-ms-overflow-style:none;">
             <button class="period-btn active" onclick="filterByCat('', this)">Todos</button>
             <button class="period-btn" onclick="filterByCat('Bebidas', this)">Bebidas</button>
@@ -60,7 +60,7 @@
     <div class="surface-card">
         <h3>Carrinho</h3>
         <div id="cart-items">
-            <div class="empty-state"><div class="icon">🛒</div><p>Carrinho vazio</p></div>
+            <div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cart"></use></svg></div><p>Carrinho vazio</p></div>
         </div>
         <div id="cart-total-section" style="display:none;">
             <div class="cart-total">
@@ -76,7 +76,7 @@
                         <label for="pay-qr-input">Código do Cartão</label>
                         <input class="input" id="pay-qr-input" placeholder="UUID do cartão">
                     </div>
-                    <button class="btn-secondary" onclick="startScanner('pay')" style="margin-bottom:1rem;width:100%;">📷 Escanear QR Code</button>
+                    <button class="btn-secondary" onclick="startScanner('pay')" style="margin-bottom:1rem;width:100%;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#scan"></use></svg> Escanear QR Code</button>
                     <div id="pay-qr-reader" style="margin-bottom:1rem;"></div>
                 </div>
                 <div id="pay-card-info" style="display:none;margin-bottom:1rem;">
@@ -94,7 +94,7 @@
                     </div>
                 </div>
                 <button class="btn-primary" onclick="processPayment()" id="btn-pay" style="display:none;width:100%;">
-                    💳 Confirmar Pagamento
+                    <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#card"></use></svg> Confirmar Pagamento
                 </button>
             </div>
         </div>
@@ -110,9 +110,9 @@
                 <label for="saldo-qr-input">Código do Cartão</label>
                 <input class="input" id="saldo-qr-input" placeholder="UUID do cartão">
             </div>
-            <button class="btn-secondary" onclick="startScanner('saldo')" style="margin-bottom:1rem;width:100%;">📷 Escanear QR Code</button>
+            <button class="btn-secondary" onclick="startScanner('saldo')" style="margin-bottom:1rem;width:100%;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#scan"></use></svg> Escanear QR Code</button>
             <div id="saldo-qr-reader" style="margin-bottom:1rem;"></div>
-            <button class="btn-secondary" onclick="consultarSaldo()" style="width:100%;margin-bottom:1rem;">🔍 Consultar Saldo</button>
+            <button class="btn-secondary" onclick="consultarSaldo()" style="width:100%;margin-bottom:1rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#search"></use></svg> Consultar Saldo</button>
         </div>
         <div id="saldo-card-info" style="display:none;">
             <div class="balance-display">
@@ -125,5 +125,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_balcao.js' %}"></script>
+<script src="{% static 'js/dashboard_balcao.js' %}?v=6"></script>
 {% endblock %}

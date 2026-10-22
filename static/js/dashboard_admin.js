@@ -43,19 +43,19 @@ function filterProducts() {
 function renderProducts(products) {
     const container = document.getElementById('products-list');
     if (!products.length) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>Nenhum produto encontrado</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#box"></use></svg></div><p>Nenhum produto encontrado</p></div>';
         return;
     }
     container.innerHTML = products.map(p => `
         <div class="product-item">
-            ${p.imagem ? `<img src="${p.imagem}" alt="" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;">` : `<div style="width:44px;height:44px;border-radius:8px;background:var(--bg-dark);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">📦</div>`}
+            ${p.imagem ? `<img src="${p.imagem}" alt="" style="width:44px;height:44px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : `<div style="width:44px;height:44px;border-radius:6px;background:var(--bg-dark);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#box"></use></svg></div>`}
             <div class="product-info" style="flex:1;min-width:0;">
                 <div class="name">${p.nome}</div>
                 <div class="price">R$ ${parseFloat(p.preco).toFixed(2)}</div>
                 <div class="category">${p.categoria}${p.disponivel ? '' : ' • <span style="color:var(--danger)">Indisponível</span>'}</div>
             </div>
-            <button class="btn-add-cart" onclick="editProduct(${p.id}, '${p.nome}', '${p.preco}', '${p.categoria}', '${(p.descricao||'').replace(/'/g,"\\'")}', ${p.disponivel}, '${p.imagem||''}')" title="Editar">✏️</button>
-            <button class="btn-add-cart" onclick="deleteProduct(${p.id})" style="background:var(--danger);" title="Excluir">🗑️</button>
+            <button class="btn-add-cart" onclick="editProduct(${p.id}, '${p.nome}', '${p.preco}', '${p.categoria}', '${(p.descricao||'').replace(/'/g,"\\'")}', ${p.disponivel}, '${p.imagem||''}')" title="Editar"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#edit"></use></svg></button>
+            <button class="btn-add-cart action-danger" onclick="deleteProduct(${p.id})" style="background:var(--danger);" title="Excluir"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#delete"></use></svg></button>
         </div>
     `).join('');
 }
@@ -153,7 +153,7 @@ function filterStaff() {
 function renderStaff(users) {
     const container = document.getElementById('staff-list');
     if (!users.length) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>Nenhum funcionário encontrado</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#users"></use></svg></div><p>Nenhum funcionário encontrado</p></div>';
         return;
     }
     container.innerHTML = users.map(u => `
@@ -163,8 +163,8 @@ function renderStaff(users) {
                 <div class="staff-type">${typeLabels[u.user_type] || u.user_type} • @${u.username}</div>
             </div>
             <div style="display:flex;gap:0.3rem;">
-                <button class="btn-add-cart" onclick="openEditStaff(${u.id}, '${(u.first_name||'').replace(/'/g, "\\'")}', '${u.user_type}')" title="Editar">✏️</button>
-                <button class="btn-add-cart" onclick="deleteStaff(${u.id})" style="background:var(--danger);" title="Excluir">🗑️</button>
+                <button class="btn-add-cart" onclick="openEditStaff(${u.id}, '${(u.first_name||'').replace(/'/g, "\\'")}', '${u.user_type}')" title="Editar"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#edit"></use></svg></button>
+                <button class="btn-add-cart action-danger" onclick="deleteStaff(${u.id})" style="background:var(--danger);" title="Excluir"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#delete"></use></svg></button>
             </div>
         </div>
     `).join('');
@@ -250,7 +250,7 @@ function filterClients() {
 function renderClients(clients) {
     const container = document.getElementById('clients-list');
     if (!clients.length) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">🧑</div><p>Nenhum cliente encontrado</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#profile"></use></svg></div><p>Nenhum cliente encontrado</p></div>';
         return;
     }
     container.innerHTML = clients.map(c => `
@@ -261,9 +261,9 @@ function renderClients(clients) {
                 <div class="staff-type" style="color:var(--success);font-weight:600;">Saldo: R$ ${parseFloat(c.saldo).toFixed(2)}</div>
             </div>
             <div style="display:flex;gap:0.3rem;">
-                <button class="btn-add-cart" onclick="viewTransactions(${c.id}, '${(c.first_name || c.username).replace(/'/g, "\\'")}')" title="Transações" style="background:var(--secondary);">📋</button>
-                <button class="btn-add-cart" onclick="editClient(${c.id}, '${(c.first_name||'').replace(/'/g, "\\'")}', '${(c.email||'').replace(/'/g, "\\'")}', '${c.cpf||''}', '${c.telefone||''}')" title="Editar">✏️</button>
-                <button class="btn-add-cart" onclick="deleteClient(${c.id})" style="background:var(--danger);" title="Excluir">🗑️</button>
+                <button class="btn-add-cart action-accent" onclick="viewTransactions(${c.id}, '${(c.first_name || c.username).replace(/'/g, "\\'")}')" title="Transações" style="background:var(--secondary);"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#receipt"></use></svg></button>
+                <button class="btn-add-cart" onclick="editClient(${c.id}, '${(c.first_name||'').replace(/'/g, "\\'")}', '${(c.email||'').replace(/'/g, "\\'")}', '${c.cpf||''}', '${c.telefone||''}')" title="Editar"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#edit"></use></svg></button>
+                <button class="btn-add-cart action-danger" onclick="deleteClient(${c.id})" style="background:var(--danger);" title="Excluir"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#delete"></use></svg></button>
             </div>
         </div>
     `).join('');
@@ -323,7 +323,7 @@ async function viewTransactions(clientId, clientName) {
             return;
         }
         const tipoColors = { deposito: 'var(--success)', pagamento: 'var(--primary)', retirada: 'var(--warning)' };
-        const tipoIcons = { deposito: '💰', pagamento: '🛒', retirada: '↩️' };
+        const tipoIcons = { deposito: '<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#wallet"></use></svg>', pagamento: '<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cart"></use></svg>', retirada: '<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#return"></use></svg>' };
         document.getElementById('txn-list').innerHTML = data.transactions.map(t => `
             <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.6rem 0;border-bottom:1px solid var(--border);">
                 <div style="flex:1;min-width:0;">
@@ -377,7 +377,7 @@ async function loadReport(period, btn) {
         let metodosHtml = '';
         if (data.depositos_app && data.depositos_app.count > 0) {
             metodosHtml += `
-                <h3 style="color:var(--text-primary);font-size:0.9rem;margin:1rem 0 0.5rem;">📱 Depósitos via App (Total: R$ ${parseFloat(data.depositos_app.total).toFixed(2)})</h3>
+                <h3 style="color:var(--text-primary);font-size:0.9rem;margin:1rem 0 0.5rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#phone"></use></svg> Depósitos via App (Total: R$ ${parseFloat(data.depositos_app.total).toFixed(2)})</h3>
                 <table class="report-table" style="margin-bottom:1rem;">
                     <thead><tr><th>Método</th><th>Qtd</th><th>Total</th></tr></thead>
                     <tbody>${data.depositos_app.por_metodo.map(m => `
@@ -388,7 +388,7 @@ async function loadReport(period, btn) {
         }
         if (data.depositos_caixa && data.depositos_caixa.count > 0) {
             metodosHtml += `
-                <h3 style="color:var(--text-primary);font-size:0.9rem;margin:1rem 0 0.5rem;">🏪 Depósitos no Caixa (Total: R$ ${parseFloat(data.depositos_caixa.total).toFixed(2)})</h3>
+                <h3 style="color:var(--text-primary);font-size:0.9rem;margin:1rem 0 0.5rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#store"></use></svg> Depósitos no Caixa (Total: R$ ${parseFloat(data.depositos_caixa.total).toFixed(2)})</h3>
                 <table class="report-table">
                     <thead><tr><th>Método</th><th>Qtd</th><th>Total</th></tr></thead>
                     <tbody>${data.depositos_caixa.por_metodo.map(m => `
@@ -402,7 +402,7 @@ async function loadReport(period, btn) {
         // Daily breakdown
         if (data.daily && data.daily.length) {
             document.getElementById('report-daily').innerHTML = `
-                <h3 style="color:var(--text-primary);font-size:0.9rem;margin:1rem 0 0.5rem;">📅 Vendas por Dia</h3>
+                <h3 style="color:var(--text-primary);font-size:0.9rem;margin:1rem 0 0.5rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#calendar"></use></svg> Vendas por Dia</h3>
                 <table class="report-table">
                     <thead><tr><th>Data</th><th>Pedidos</th><th>Total</th></tr></thead>
                     <tbody>${data.daily.map(d => `
@@ -417,7 +417,7 @@ async function loadReport(period, btn) {
         // Top products
         if (data.top_products.length) {
             document.getElementById('report-top-products').innerHTML = `
-                <h3 style="color:var(--text-primary);font-size:0.9rem;margin:1rem 0 0.5rem;">🏆 Mais Vendidos</h3>
+                <h3 style="color:var(--text-primary);font-size:0.9rem;margin:1rem 0 0.5rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#award"></use></svg> Mais Vendidos</h3>
                 <table class="report-table">
                     <thead><tr><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead>
                     <tbody>${data.top_products.map(p => `
@@ -486,13 +486,13 @@ async function loadAllTransactions() {
             const data = await apiFetch(`/api/reports/transactions/?${params}`);
 
             if (!data.transactions.length) {
-                container.innerHTML = '<div class="empty-state"><div class="icon">🧾</div><p>Nenhuma transação encontrada</p></div>';
+                container.innerHTML = '<div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#receipt"></use></svg></div><p>Nenhuma transação encontrada</p></div>';
                 return;
             }
 
             container.innerHTML = data.transactions.map(t => {
                 const produtosHtml = t.produtos.length
-                    ? `<div style="margin-top:0.4rem;padding:0.4rem 0.6rem;background:var(--bg-dark);border-radius:8px;">
+                    ? `<div style="margin-top:0.4rem;padding:0.4rem 0.6rem;background:var(--bg-dark);border-radius:6px;">
                         ${t.produtos.map(p => `<div style="display:flex;justify-content:space-between;font-size:0.78rem;padding:0.15rem 0;">
                             <span style="color:var(--text-primary);">${p.quantidade}x ${p.nome}</span>
                             <span style="color:var(--text-secondary);">R$ ${parseFloat(p.subtotal).toFixed(2)}</span>
@@ -505,17 +505,17 @@ async function loadAllTransactions() {
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div style="flex:1;min-width:0;">
                             <div style="color:var(--text-primary);font-weight:700;font-size:0.9rem;">
-                                🛒 Transação #${t.id}
+                                <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cart"></use></svg> Transação #${t.id}
                             </div>
                             <div style="color:var(--text-secondary);font-size:0.78rem;margin-top:0.2rem;">
-                                👤 Vendedor: <span style="color:var(--text-primary);font-weight:600;">${t.vendedor}</span>
+                                <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#profile"></use></svg> Vendedor: <span style="color:var(--text-primary);font-weight:600;">${t.vendedor}</span>
                             </div>
                             <div style="color:var(--text-secondary);font-size:0.78rem;">
-                                🧑 Cliente: <span style="color:var(--text-primary);">${t.nome_cliente || '—'}</span>
+                                <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#profile"></use></svg> Cliente: <span style="color:var(--text-primary);">${t.nome_cliente || '—'}</span>
                                 ${t.cpf_cliente ? ` • CPF: <span style="color:var(--text-primary);">${t.cpf_cliente}</span>` : ''}
                             </div>
                             <div style="color:var(--text-secondary);font-size:0.75rem;">
-                                📅 ${t.data}
+                                <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#calendar"></use></svg> ${t.data}
                             </div>
                         </div>
                         <div style="color:var(--success);font-weight:800;font-size:1rem;white-space:nowrap;margin-left:0.5rem;">

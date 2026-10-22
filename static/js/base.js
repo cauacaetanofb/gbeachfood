@@ -64,7 +64,7 @@ function installApp() {
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then(result => {
         if (result.outcome === 'accepted') {
-            showToast('App instalado com sucesso! 🎉');
+            showToast('App instalado com sucesso!');
         }
         deferredPrompt = null;
         const banner = document.getElementById('install-banner');

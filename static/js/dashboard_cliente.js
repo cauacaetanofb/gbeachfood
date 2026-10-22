@@ -136,7 +136,7 @@ async function loadExtrato() {
             return;
         }
         const tipoColors = { deposito: 'var(--success)', pagamento: 'var(--primary)', retirada: 'var(--warning)' };
-        const tipoIcons = { deposito: '💰', pagamento: '🛒', retirada: '↩️' };
+        const tipoIcons = { deposito: '<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#wallet"></use></svg>', pagamento: '<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cart"></use></svg>', retirada: '<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#return"></use></svg>' };
         container.innerHTML = data.transactions.map(t => `
             <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.7rem 0;border-bottom:1px solid var(--border);">
                 <div style="flex:1;min-width:0;">
@@ -145,7 +145,7 @@ async function loadExtrato() {
                         <span style="color:var(--text-secondary);font-weight:400;font-size:0.75rem;margin-left:0.3rem;">${t.metodo_label}</span>
                     </div>
                     <div style="color:var(--text-secondary);font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.descricao}</div>
-                    <div style="color:var(--text-secondary);font-size:0.72rem;">📅 ${t.data}</div>
+                    <div style="color:var(--text-secondary);font-size:0.72rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#calendar"></use></svg> ${t.data}</div>
                 </div>
                 <div style="color:${tipoColors[t.tipo] || 'var(--text-primary)'};font-weight:700;font-size:0.9rem;white-space:nowrap;margin-left:0.5rem;">
                     ${t.tipo === 'deposito' ? '+' : '−'} R$ ${parseFloat(t.valor).toFixed(2)}

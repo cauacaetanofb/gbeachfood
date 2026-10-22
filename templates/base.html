@@ -6,15 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}GBeachFood{% endblock %}</title>
     <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#087f8c">
+    <meta name="theme-color" content="#00a9e0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Titan+One&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     {% load static %}
     <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="{% static 'images/icon-192.png' %}">
-    <link rel="stylesheet" href="{% static 'css/custom.css' %}">
+    <link rel="icon" type="image/png" href="{% static 'images/logo-guriri.png' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/logo-guriri.png' %}">
+    <link rel="stylesheet" href="{% static 'css/custom.css' %}?v=6">
     {% block extra_head %}{% endblock %}
 </head>
 
@@ -28,7 +29,7 @@
         <!-- Botão Instalar PWA -->
         <div id="install-banner" class="install-banner">
             <button id="btn-install" class="btn-install" onclick="installApp()">
-                <span class="install-icon">⬇️</span>
+                <span class="install-icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#download"></use></svg></span>
                 <div class="install-text">
                     <span class="install-title">Instale o app no seu celular</span>
                     <span class="install-sub">Acesse rápido direto da tela inicial</span>
@@ -52,7 +53,7 @@
         </footer>
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-    <script src="{% static 'js/base.js' %}"></script>
+    <script src="{% static 'js/base.js' %}?v=6"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 

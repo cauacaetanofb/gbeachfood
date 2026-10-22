@@ -92,18 +92,18 @@ function renderMenu() {
     if (selectedCat) products = products.filter(p => p.categoria === selectedCat);
     if (search) products = products.filter(p => p.nome.toLowerCase().includes(search));
     if (!products.length) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">🍕</div><p>Nenhum produto encontrado</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#food"></use></svg></div><p>Nenhum produto encontrado</p></div>';
         return;
     }
     container.innerHTML = products.map(p => `
         <div class="product-item">
-            ${p.imagem ? `<img src="${p.imagem}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;flex-shrink:0;">` : `<div style="width:48px;height:48px;border-radius:10px;background:var(--bg-dark);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">🍽️</div>`}
+            ${p.imagem ? `<img src="${p.imagem}" alt="" style="width:48px;height:48px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : `<div style="width:48px;height:48px;border-radius:6px;background:var(--bg-dark);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#food"></use></svg></div>`}
             <div class="product-info" style="flex:1;min-width:0;">
                 <div class="name">${p.nome}</div>
                 <div class="price">R$ ${parseFloat(p.preco).toFixed(2)}</div>
                 <div class="category">${p.categoria}</div>
             </div>
-            <button class="btn-add-cart" onclick='addToCart(${JSON.stringify(p)})'>+</button>
+            <button class="btn-add-cart" aria-label="Adicionar ao carrinho" onclick='addToCart(${JSON.stringify(p)})'><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#plus"></use></svg></button>
         </div>
     `).join('');
 }
@@ -149,7 +149,7 @@ function renderCart() {
     const container = document.getElementById('cart-items');
     const totalSection = document.getElementById('cart-total-section');
     if (!cart.length) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">🛒</div><p>Carrinho vazio</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cart"></use></svg></div><p>Carrinho vazio</p></div>';
         totalSection.style.display = 'none';
         return;
     }
@@ -161,9 +161,9 @@ function renderCart() {
                 <div class="price">R$ ${(parseFloat(c.preco) * c.quantidade).toFixed(2)}</div>
             </div>
             <div class="cart-qty">
-                <button onclick="changeQty(${c.id}, -1)">−</button>
+                <button aria-label="Diminuir quantidade" onclick="changeQty(${c.id}, -1)"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#minus"></use></svg></button>
                 <span>${c.quantidade}</span>
-                <button onclick="changeQty(${c.id}, 1)">+</button>
+                <button aria-label="Aumentar quantidade" onclick="changeQty(${c.id}, 1)"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#plus"></use></svg></button>
             </div>
         </div>
     `).join('');
@@ -339,7 +339,7 @@ async function loadDailyReport() {
         document.getElementById('report-content').style.display = 'block';
 
         document.getElementById('report-summary').innerHTML = `
-            <div style="text-align:center;margin-bottom:0.5rem;color:var(--text-secondary);font-size:0.82rem;">📅 ${data.data}</div>
+            <div style="text-align:center;margin-bottom:0.5rem;color:var(--text-secondary);font-size:0.82rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#calendar"></use></svg> ${data.data}</div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                 <div class="surface-card" style="flex:1;text-align:center;margin:0;min-width:45%;background:var(--bg-dark);">
                     <div style="color:var(--success);font-size:1.3rem;font-weight:800;">R$ ${parseFloat(data.total_vendas).toFixed(2)}</div>
@@ -354,7 +354,7 @@ async function loadDailyReport() {
 
         if (data.por_metodo && data.por_metodo.length) {
             document.getElementById('report-metodos').innerHTML = `
-                <h3 style="color:var(--text-primary);font-size:0.9rem;margin-bottom:0.5rem;">💳 Recebido por Forma de Pagamento</h3>
+                <h3 style="color:var(--text-primary);font-size:0.9rem;margin-bottom:0.5rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#card"></use></svg> Recebido por Forma de Pagamento</h3>
                 <table class="report-table">
                     <thead><tr><th>Método</th><th>Qtd</th><th>Total</th></tr></thead>
                     <tbody>${data.por_metodo.map(m => `
@@ -368,7 +368,7 @@ async function loadDailyReport() {
 
         if (data.top_products && data.top_products.length) {
             document.getElementById('report-top').innerHTML = `
-                <h3 style="color:var(--text-primary);font-size:0.9rem;margin-bottom:0.5rem;">🏆 Mais Vendidos Hoje</h3>
+                <h3 style="color:var(--text-primary);font-size:0.9rem;margin-bottom:0.5rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#award"></use></svg> Mais Vendidos Hoje</h3>
                 <table class="report-table">
                     <thead><tr><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead>
                     <tbody>${data.top_products.map(p => `
@@ -397,15 +397,15 @@ async function buscarCartoesCPF() {
     try {
         const data = await apiFetch('/api/cards/search-cpf/?cpf=' + encodeURIComponent(cpf));
         if (!data.cards || data.cards.length === 0) {
-            resultsDiv.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>Nenhum cartão encontrado</p></div>';
+            resultsDiv.innerHTML = '<div class="empty-state"><div class="icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#search"></use></svg></div><p>Nenhum cartão encontrado</p></div>';
             return;
         }
         let html = '';
         data.cards.forEach(function(card) {
-            const tipo = card.is_temporary ? '🏷️ Temporário' : '📱 Cliente App';
+            const tipo = card.is_temporary ? '<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#tag"></use></svg> Temporário' : '<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#phone"></use></svg> Cliente App';
             const status = card.bloqueado
-                ? '<span style="color:var(--danger);font-weight:600;">❌ Cancelado</span>'
-                : '<span style="color:var(--success);font-weight:600;">✅ Ativo</span>';
+                ? '<span style="color:var(--danger);font-weight:600;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#close"></use></svg> Cancelado</span>'
+                : '<span style="color:var(--success);font-weight:600;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#check"></use></svg> Ativo</span>';
             const saldo = parseFloat(card.saldo).toFixed(2);
 
             html += '<div class="surface-card" style="background:var(--bg-dark);margin-bottom:0.6rem;padding:0.8rem;">';
@@ -423,9 +423,9 @@ async function buscarCartoesCPF() {
             if (!card.bloqueado) {
                 html += '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">';
                 if (parseFloat(card.saldo) > 0) {
-                    html += '<button class="btn-secondary" onclick="iniciarTransferencia(' + card.id + ', \'' + card.nome.replace(/'/g, "\\'") + '\', \'' + saldo + '\')" style="flex:1;font-size:0.78rem;padding:0.4rem;">🔄 Transferir</button>';
+                    html += '<button class="btn-secondary" onclick="iniciarTransferencia(' + card.id + ', \'' + card.nome.replace(/'/g, "\\'") + '\', \'' + saldo + '\')" style="flex:1;font-size:0.78rem;padding:0.4rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#transfer"></use></svg> Transferir</button>';
                 }
-                html += '<button class="btn-danger" onclick="bloquearCartao(' + card.id + ', \'' + card.nome.replace(/'/g, "\\'") + '\')" style="flex:1;font-size:0.78rem;padding:0.4rem;">🚫 Cancelar</button>';
+                html += '<button class="btn-danger" onclick="bloquearCartao(' + card.id + ', \'' + card.nome.replace(/'/g, "\\'") + '\')" style="flex:1;font-size:0.78rem;padding:0.4rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cancel"></use></svg> Cancelar</button>';
                 html += '</div>';
             }
             html += '</div>';

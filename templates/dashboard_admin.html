@@ -9,17 +9,17 @@
 <!-- Header -->
 <div class="dash-header">
     <div style="display:flex;align-items:center;gap:0.5rem;">
-        {% if is_admin %}<button class="btn-hamburger" type="button" aria-label="Abrir menu" aria-controls="sidebar" onclick="toggleSidebar()">☰</button>{% endif %}
+        {% if is_admin %}<button class="btn-hamburger" type="button" aria-label="Abrir menu" aria-controls="sidebar" onclick="toggleSidebar()"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#menu"></use></svg></button>{% endif %}
         <div class="logo">{% include 'partials/brand.html' %}</div>
     </div>
     <div class="user-info">
-        <span class="user-name" onclick="openMyProfile()" style="cursor:pointer;text-decoration:underline dotted;">⚙️ {{ user.first_name|default:user.username }}</span>
+        <span class="user-name" onclick="openMyProfile()" style="cursor:pointer;text-decoration:underline dotted;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#profile"></use></svg> {{ user.first_name|default:user.username }}</span>
     </div>
 </div>
 
 <section class="dashboard-welcome" aria-labelledby="page-title">
     <div><span class="eyebrow">GESTÃO DO RESTAURANTE</span><h1 id="page-title">Tudo organizado. Dia mais tranquilo.</h1><p>Cuide do cardápio, da equipe e acompanhe os resultados.</p></div>
-    <span class="welcome-note"><span aria-hidden="true">☀</span> Painel de administração</span>
+    <span class="welcome-note"><span aria-hidden="true"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#sun"></use></svg></span> Painel de administração</span>
 </section>
 
 <!-- Tabs -->
@@ -35,11 +35,11 @@
     <div class="surface-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
             <h3 style="margin:0;">Produtos</h3>
-            <button class="btn-success" onclick="openAddProduct()" style="font-size:0.82rem;">+ Novo</button>
+            <button class="btn-success" onclick="openAddProduct()" style="font-size:0.82rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#plus"></use></svg> Novo</button>
         </div>
         <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
-            <input class="input" id="search-product" placeholder="🔍 Buscar por nome..." oninput="filterProducts()" style="flex:2;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.9em;font-size:0.85rem;">
-            <select id="filter-product-cat" onchange="filterProducts()" style="flex:1;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.5em;font-size:0.82rem;">
+            <input class="input search-input" id="search-product" placeholder="Buscar por nome..." oninput="filterProducts()" style="flex:2;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.9em;font-size:0.85rem;">
+            <select id="filter-product-cat" onchange="filterProducts()" style="flex:1;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.5em;font-size:0.82rem;">
                 <option value="">Todas</option>
             </select>
         </div>
@@ -54,11 +54,11 @@
     <div class="surface-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
             <h3 style="margin:0;">Funcionários</h3>
-            <button class="btn-success" onclick="openAddStaff()" style="font-size:0.82rem;">+ Novo</button>
+            <button class="btn-success" onclick="openAddStaff()" style="font-size:0.82rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#plus"></use></svg> Novo</button>
         </div>
         <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
-            <input class="input" id="search-staff" placeholder="🔍 Buscar por nome..." oninput="filterStaff()" style="flex:2;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.9em;font-size:0.85rem;">
-            <select id="filter-staff-type" onchange="filterStaff()" style="flex:1;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.5em;font-size:0.82rem;">
+            <input class="input search-input" id="search-staff" placeholder="Buscar por nome..." oninput="filterStaff()" style="flex:2;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.9em;font-size:0.85rem;">
+            <select id="filter-staff-type" onchange="filterStaff()" style="flex:1;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.5em;font-size:0.82rem;">
                 <option value="">Todos</option>
                 <option value="admin">Admin</option>
                 <option value="balcao">Balcão</option>
@@ -76,7 +76,7 @@
     <div class="surface-card">
         <h3>Clientes</h3>
         <div style="margin-bottom:1rem;">
-            <input class="input" id="search-client" placeholder="🔍 Buscar por nome..." oninput="filterClients()" style="background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.9em;font-size:0.85rem;width:100%;box-sizing:border-box;">
+            <input class="input search-input" id="search-client" placeholder="Buscar por nome..." oninput="filterClients()" style="background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.9em;font-size:0.85rem;width:100%;box-sizing:border-box;">
         </div>
         <div id="clients-list">
             <div class="loading"><div class="spinner"></div></div>
@@ -89,7 +89,7 @@
     <div class="surface-card" id="admin-report-area">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;">
             <h3 style="margin:0;">Relatório de Vendas</h3>
-            <button class="btn-secondary" onclick="printReport('admin-report-area')" style="font-size:0.78rem;padding:0.4rem 0.8rem;">🖨️ Imprimir</button>
+            <button class="btn-secondary" onclick="printReport('admin-report-area')" style="font-size:0.78rem;padding:0.4rem 0.8rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#print"></use></svg> Imprimir</button>
         </div>
         <div class="period-select">
             <button class="period-btn active" onclick="loadReport('today', this)">Hoje</button>
@@ -104,10 +104,10 @@
 
     <!-- Seção: Todas as Transações -->
     <div class="surface-card" style="margin-top:1rem;">
-        <h3>🧾 Todas as Transações</h3>
+        <h3><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#receipt"></use></svg> Todas as Transações</h3>
         <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;">
-            <input type="date" id="txn-date-filter" style="flex:1;min-width:140px;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.7em;font-size:0.85rem;" onchange="loadAllTransactions()">
-            <input class="input" id="txn-search" placeholder="🔍 CPF ou vendedor..." oninput="loadAllTransactions()" style="flex:2;min-width:150px;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.9em;font-size:0.85rem;">
+            <input type="date" id="txn-date-filter" style="flex:1;min-width:140px;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.7em;font-size:0.85rem;" onchange="loadAllTransactions()">
+            <input class="input search-input" id="txn-search" placeholder="CPF ou vendedor..." oninput="loadAllTransactions()" style="flex:2;min-width:150px;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.9em;font-size:0.85rem;">
         </div>
         <div id="all-transactions-list">
             <div class="empty-state"><p>Selecione uma data para ver as transações</p></div>
@@ -118,7 +118,7 @@
 <!-- Modal: Novo Produto -->
 <div id="modal-product" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-product')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-product')"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#close"></use></svg></button>
         <h3 id="modal-product-title">Novo Produto</h3>
         <form id="form-product" class="dash-form" onsubmit="return saveProduct(event)">
             <input type="hidden" id="product-id" value="">
@@ -132,7 +132,7 @@
             </div>
             <div class="field">
                 <label for="p-categoria">Categoria</label>
-                <select class="input" id="p-categoria" style="background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:10px;padding:0.6em 0.5em;font-size:0.85rem;">
+                <select class="input" id="p-categoria" style="background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.5em;font-size:0.85rem;">
                     <option value="">Selecione...</option>
                     <option value="Bebidas">Bebidas</option>
                     <option value="Cervejas">Cervejas</option>
@@ -150,7 +150,7 @@
             </div>
             <div class="field">
                 <label>Imagem</label>
-                <img id="p-imagem-preview" src="" alt="Foto atual" style="display:none;width:80px;height:80px;border-radius:10px;object-fit:cover;margin-bottom:0.5rem;border:2px solid var(--border);">
+                <img id="p-imagem-preview" src="" alt="Foto atual" style="display:none;width:80px;height:80px;border-radius:6px;object-fit:cover;margin-bottom:0.5rem;border:2px solid var(--border);">
                 <input type="file" id="p-imagem" accept="image/*" style="color:var(--text-secondary);font-size:0.85rem;">
                 <div style="color:var(--text-secondary);font-size:0.72rem;margin-top:0.3rem;">Selecione uma nova foto para atualizar.</div>
             </div>
@@ -169,7 +169,7 @@
 <!-- Modal: Novo Funcionário -->
 <div id="modal-staff" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-staff')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-staff')"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#close"></use></svg></button>
         <h3>Novo Funcionário</h3>
         <form id="form-staff" class="dash-form" onsubmit="return saveStaff(event)">
             <div class="field">
@@ -204,7 +204,7 @@
 <!-- Modal: Editar Cliente -->
 <div id="modal-client" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-client')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-client')"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#close"></use></svg></button>
         <h3>Editar Cliente</h3>
         <form id="form-client" class="dash-form" onsubmit="return saveClient(event)">
             <input type="hidden" id="c-id" value="">
@@ -232,7 +232,7 @@
 <!-- Modal: Transações do Cliente -->
 <div id="modal-transactions" class="modal-overlay">
     <div class="modal-box" style="max-height:85vh;">
-        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-transactions')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-transactions')"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#close"></use></svg></button>
         <h3 id="txn-title">Transações</h3>
         <div id="txn-saldo" style="text-align:center;margin-bottom:1rem;"></div>
         <div id="txn-list">
@@ -244,7 +244,7 @@
 <!-- Modal: Editar Funcionário -->
 <div id="modal-edit-staff" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-edit-staff')"></button>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-edit-staff')"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#close"></use></svg></button>
         <h3>Editar Funcionário</h3>
         <form id="form-edit-staff" class="dash-form" onsubmit="return saveEditStaff(event)">
             <input type="hidden" id="es-id" value="">
@@ -272,8 +272,8 @@
 <!-- Modal: Meu Perfil -->
 <div id="modal-profile" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-profile')"></button>
-        <h3>⚙️ Meu Perfil</h3>
+        <button class="modal-close" type="button" aria-label="Fechar janela" onclick="closeModal('modal-profile')"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#close"></use></svg></button>
+        <h3><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#profile"></use></svg> Meu Perfil</h3>
         <form id="form-profile" class="dash-form" onsubmit="return saveProfile(event)">
             <div class="field">
                 <label for="pf-nome">Nome</label>
@@ -302,5 +302,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_admin.js' %}"></script>
+<script src="{% static 'js/dashboard_admin.js' %}?v=6"></script>
 {% endblock %}
