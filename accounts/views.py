@@ -68,16 +68,12 @@ def dashboard_view(request):
         'cliente': 'dashboard_cliente.html',
     }
 
-    # Admin pode acessar qualquer dashboard via ?as=
+    # Admin pode acessar os painéis operacionais, sem cartão pessoal.
     view_as = user.user_type
     if user.user_type == 'admin':
         requested = request.GET.get('as', 'admin')
-        if requested in template_map:
+        if requested in ('admin', 'caixa', 'balcao'):
             view_as = requested
-        # Garantir que admin tenha um Card para a tela de cliente
-        if view_as == 'cliente':
-            from cards.models import Card
-            Card.objects.get_or_create(user=user, defaults={'is_temporary': False})
 
     template = template_map.get(view_as, 'login.html')
     return render(request, template, {'user': user, 'is_admin': user.user_type == 'admin', 'active_page': view_as})

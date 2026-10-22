@@ -44,7 +44,7 @@ def generate_qr_base64(data_str):
 @login_required
 def api_my_card(request):
     """Retorna o cartão do cliente logado."""
-    if request.user.user_type not in ('cliente', 'admin'):
+    if request.user.user_type != 'cliente':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
     card, created = Card.objects.get_or_create(user=request.user)
     qr_b64 = generate_qr_base64(str(card.qr_code_data))
@@ -220,7 +220,7 @@ def api_client_transactions(request, client_id):
 @login_required
 def api_my_transactions(request):
     """Cliente: retorna suas próprias transações."""
-    if request.user.user_type not in ('cliente', 'admin'):
+    if request.user.user_type != 'cliente':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
     try:
         card = Card.objects.get(user=request.user)
@@ -418,7 +418,7 @@ def _get_or_create_asaas_customer(user):
 @json_api
 def api_asaas_create_payment(request):
     """Cria cobrança PIX no Asaas e retorna QR Code."""
-    if request.user.user_type not in ('cliente', 'admin'):
+    if request.user.user_type != 'cliente':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = request.json_data
@@ -565,6 +565,8 @@ def _process_asaas_webhook(request):
 @login_required
 def api_asaas_check_payment(request, recarga_id):
     """Cliente verifica se o pagamento foi confirmado."""
+    if request.user.user_type != 'cliente':
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
     try:
         recarga = Recarga.objects.get(id=recarga_id, user=request.user)
         return JsonResponse({
