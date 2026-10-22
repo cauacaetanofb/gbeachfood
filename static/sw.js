@@ -1,10 +1,10 @@
 // Service Worker — GFood PWA
-const CACHE_NAME = 'gfood-v6';
+const CACHE_NAME = 'gfood-v7';
 
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => cache.addAll([
-            '/static/css/custom.css?v=6',
+            '/static/css/custom.css?v=7',
             '/static/js/base.js?v=6',
             '/static/images/logo-guriri.png',
             '/static/images/ui-icons.svg',

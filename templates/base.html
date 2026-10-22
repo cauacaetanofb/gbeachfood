@@ -15,7 +15,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" type="image/png" href="{% static 'images/logo-guriri.png' %}">
     <link rel="apple-touch-icon" href="{% static 'images/logo-guriri.png' %}">
-    <link rel="stylesheet" href="{% static 'css/custom.css' %}?v=6">
+    <link rel="stylesheet" href="{% static 'css/custom.css' %}?v=7">
     {% block extra_head %}{% endblock %}
 </head>
 
@@ -39,6 +39,9 @@
 
         <!-- GBeachFood Footer -->
         <footer class="app-footer">
+            <svg class="footer-wave" viewBox="0 0 1440 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                <path d="M0 52C160 92 320 0 480 24S800 100 1000 50S1280 8 1440 48V100H0Z" />
+            </svg>
             <div class="footer-content">
                 <div class="footer-brand">{% include 'partials/brand.html' %}</div>
                 <p class="footer-caption">Guriri Beach Acqua Park · Mais tempo para aproveitar.</p>

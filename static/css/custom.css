@@ -213,8 +213,10 @@ body:has(.modal-overlay.active), body:has(.sidebar.open) { overflow: hidden; }
 .install-text { display: flex; flex-direction: column; }
 .install-title { font-size: .82rem; font-weight: 700; }
 .install-sub { font-size: .73rem; color: var(--text-secondary); margin-top: 3px; }
-.app-footer { margin: 44px -32px 0; padding: 32px; background: #123c5a; border-top: 4px solid #00a9e0; color: #d6eafa; text-align: center; }
-.footer-content { display: flex; flex-direction: column; align-items: center; gap: 13px; }
+/* The filled wave rises from the footer; its transparent top reveals the page. */
+.app-footer { --footer-background: #123c5a; margin: 44px -32px 0; color: #d6eafa; text-align: center; }
+.footer-wave { display: block; width: 100%; height: clamp(40px, 6vw, 80px); fill: var(--footer-background); margin-bottom: -1px; pointer-events: none; }
+.footer-content { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 24px 32px 32px; background: var(--footer-background); }
 .footer-brand .brand-logo { width: 88px; height: 88px; }
 .footer-brand .brand-caption { display: none; }
 .footer-caption { font-size: .78rem; color: #fffdf8; }
