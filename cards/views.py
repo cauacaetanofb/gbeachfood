@@ -362,6 +362,7 @@ def _asaas_headers():
     return {
         'access_token': django_settings.ASAAS_API_KEY.strip(),
         'Content-Type': 'application/json',
+        'User-Agent': 'gbeachfood',
     }
 
 

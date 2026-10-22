@@ -188,7 +188,7 @@ Crie um arquivo `.env` na raiz do projeto:
 ```env
 SECRET_KEY=sua-chave-secreta-aqui
 ASAAS_API_KEY=sua-chave-asaas
-ASAAS_BASE_URL=https://sandbox.asaas.com/api/v3
+ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
 ASAAS_WEBHOOK_TOKEN=seu-token-webhook
 ```
 
@@ -418,14 +418,14 @@ O sistema utiliza a [API do Asaas](https://docs.asaas.com) para processar recarg
 
 ### Configuração
 
-- **Sandbox** (testes): `ASAAS_BASE_URL=https://sandbox.asaas.com/api/v3`
-- **Produção**: `ASAAS_BASE_URL=https://api.asaas.com/api/v3`
+- **Sandbox** (testes): `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3`
+- **Produção**: `ASAAS_BASE_URL=https://api.asaas.com/v3`
 
 ### Webhook
 
 Configure a URL do webhook no painel do Asaas:
 ```
-https://app.exemplo.com/api/asaas/webhook/
+https://gbeachfood.web.app/api/asaas/webhook/
 ```
 
 Eventos que devem ser habilitados:
