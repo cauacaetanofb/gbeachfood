@@ -9,7 +9,7 @@
     "orientation": "portrait",
     "icons": [
         {
-            "src": "/static/images/logo-guriri.png",
+            "src": "/static/images/logo-guriri.png?v=8",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any"
