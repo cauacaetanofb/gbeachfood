@@ -26,12 +26,12 @@ try {
     & $deployScript -Version 'test-local-only'
     Assert-DeployTest ($global:deployCalls.Count -eq 6) 'Unexpected number of commands.'
     $sequence = @($global:deployCalls | ForEach-Object { $_.Arguments -join ' ' })
-    Assert-DeployTest ($sequence[0] -match 'hosting:sites:list') 'Missing authentication preflight.'
-    Assert-DeployTest ($sequence[1] -match '^builds submit') 'Build not first mutation.'
+    Assert-DeployTest ($sequence[1] -match '^builds submit') 'Build not first.'
     Assert-DeployTest ($sequence[2] -match '^run jobs update') 'Job not updated.'
     Assert-DeployTest ($sequence[3] -match '^run jobs execute.*--wait') 'Migrations not awaited.'
     Assert-DeployTest ($sequence[4] -match '^run services update') 'Service not updated after migrations.'
-    Assert-DeployTest ($sequence[5] -match 'deploy --only hosting') 'Hosting not last.'
+    Assert-DeployTest ($sequence[0] -match 'hosting:sites:list') 'Firebase preflight not first.'
+    Assert-DeployTest ($sequence[5] -match 'deploy --only=hosting.*--project=gbeachfood') 'Hosting not last or incorrect project.'
     foreach ($i in @(1, 2, 4)) {
         Assert-DeployTest ($sequence[$i] -match 'app:test-local-only') 'Images differ between steps.'
     }
@@ -49,12 +49,16 @@ try {
 
     $global:deployCalls.Clear()
     $global:deployFailAt = 0
+    & $deployScript -HostingOnly -Plan
+    Assert-DeployTest ($global:deployCalls.Count -eq 0) 'Hosting plan executed commands.'
     & $deployScript -HostingOnly
-    Assert-DeployTest ($global:deployCalls.Count -eq 2) 'Unexpected HostingOnly commands.'
-    Assert-DeployTest (@($global:deployCalls | Where-Object { $_.Tool -eq 'gcloud' }).Count -eq 0) 'HostingOnly changed backend.'
-    Write-Host 'OK: plan, image consistency, migration ordering, failure stops, HostingOnly and working directory.'
+    Assert-DeployTest ($global:deployCalls.Count -eq 2) 'Hosting-only command count incorrect.'
+    Assert-DeployTest (@($global:deployCalls | Where-Object { $_.Tool -eq 'gcloud' }).Count -eq 0) 'Hosting-only called Cloud Run.'
+
+    Write-Host 'OK: plan, image consistency, migration ordering, failure stops and working directory.'
 } finally {
-    Remove-Item Function:\gcloud.cmd, Function:\npx.cmd
+    Remove-Item Function:\gcloud.cmd
+    Remove-Item Function:\npx.cmd
     Remove-Variable deployCalls, deployFailAt -Scope Global
     $global:LASTEXITCODE = 0
 }

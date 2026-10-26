@@ -25,7 +25,7 @@ ALLOWED_HOSTS = [host.strip() for host in required_env('ALLOWED_HOSTS').split(',
 if not ALLOWED_HOSTS or any(host == '*' or '://' in host for host in ALLOWED_HOSTS):
     raise ImproperlyConfigured('ALLOWED_HOSTS deve conter domínios, sem protocolo ou curinga global.')
 
-# O vínculo Cloud SQL do serviço fornece este socket; não é necessário SDK Firebase.
+# O vínculo Cloud SQL do serviço fornece o socket do PostgreSQL.
 if os.getenv('INSTANCE_CONNECTION_NAME'):
     DATABASES = {'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -45,7 +45,7 @@ DATABASES['default'].update(CONN_MAX_AGE=60, CONN_HEALTH_CHECKS=True)
 # O proxy do Cloud Run termina TLS e informa o protocolo original.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = True
-# Firebase Hosting encaminha somente o cookie __session ao Cloud Run.
+# Firebase Hosting encaminha apenas __session; o token CSRF fica na sessão.
 SESSION_COOKIE_NAME = "__session"
 CSRF_USE_SESSIONS = True
 SESSION_COOKIE_SECURE = True

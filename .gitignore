@@ -15,7 +15,7 @@ credentials.json
 client_secret*.json
 service-account*.json
 service_account*.json
-*firebase-adminsdk*.json
+*-adminsdk-*.json
 
 # Ambientes virtuais Python
 /venv/
@@ -92,14 +92,10 @@ $RECYCLE.BIN/
 
 # Migrations, static/, templates/ e arquivos de deploy devem ser versionados.
 
-# Cache e logs locais da ferramenta Firebase
-/.firebase/
-firebase-debug.log*
-
 # Documentacao local (preferencia atual do projeto)
 /docs/
 
-# Dependencias e caches locais Node/Firebase
+# Dependencias e caches locais Node
 node_modules/
 /.npm/
 npm-debug.log*
@@ -113,3 +109,7 @@ yarn-error.log*
 *.sql.gz
 *.dump
 *.sqlite3-journal
+
+# Cache e logs locais do Firebase
+/.firebase/
+firebase-debug.log*

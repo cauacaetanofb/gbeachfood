@@ -213,28 +213,15 @@ python manage.py runserver
 
 ---
 
-## ☁️ Deploy no Google Cloud / Firebase
+## Deploy no Google Cloud / Firebase
 
-O projeto Firebase `gbeachfood` compartilha os recursos do Google Cloud. O Django
-será executado no **Cloud Run**, conectado ao **Cloud SQL PostgreSQL**, com senhas
-no **Secret Manager**. A primeira publicação usará o endereço HTTPS do Cloud Run.
-O Firebase Hosting encaminha o endereço público `https://gbeachfood.web.app`
-para o serviço Cloud Run `gbeachfood` em `southamerica-east1`. A configuração local
-está em `firebase.json` e `.firebaserc`; é necessário publicar essas configurações
-com a CLI Firebase após atualizar a imagem do Cloud Run.
+O Django é executado no Cloud Run, com PostgreSQL e segredos no Secret Manager.
+O Firebase Hosting encaminha as requisições de `https://gbeachfood.web.app`
+para o serviço `gbeachfood` no Cloud Run, em `southamerica-east1`.
 
 ### Publicar pelo terminal do VS Code (Windows)
 
-O script `deploy.ps1`, na raiz, publica os arquivos salvos no computador diretamente
-no projeto `gbeachfood`. O build continua no Cloud Build: não precisa de Docker local,
-ZIP manual ou Cloud Shell. O script não executa comandos Git.
-
-Preparação única neste computador:
-
-1. Instalar a [Google Cloud CLI para Windows](https://docs.cloud.google.com/sdk/docs/install-sdk#windows),
-   incluindo o PATH, e fechar/reabrir o VS Code.
-2. Ter Node.js LTS com `npx` disponível.
-3. No PowerShell do VS Code, autenticar com a conta que administra `gbeachfood`:
+Instale a Google Cloud CLI e o Node.js LTS, reabra o VS Code e autentique:
 
 ```powershell
 gcloud.cmd auth login
@@ -242,102 +229,88 @@ gcloud.cmd config set project gbeachfood
 npx.cmd --yes firebase-tools login
 ```
 
-O login feito no Cloud Shell não autentica automaticamente este computador.
-
-Para publicar, a partir da raiz do projeto:
+O script publica os arquivos locais usando o Cloud Build, sem Docker local,
+ZIP manual ou comandos Git. O `.env` e o banco local não são enviados.
 
 ```powershell
+# Somente visualizar; não publica nem gera custos de build:
+.\deploy.ps1 -Plan
+
+# Publicar quando o banco e o faturamento estiverem disponíveis:
 .\deploy.ps1
 ```
 
-Se o PowerShell bloquear scripts, execute apenas este processo com a política adequada,
-sem mudar a política permanente do Windows:
+O script constrói uma imagem, atualiza o job `gbeachfood-migrate`, executa as
+migrations e só então atualiza o serviço com a mesma imagem e publica o Hosting.
+O acesso ao Firebase é verificado antes do build. Variáveis, segredos,
+conexão SQL e permissões existentes são preservados. Novas configurações precisam
+ser aplicadas separadamente. Qualquer falha interrompe os passos seguintes, sem
+reverter migrations já concluídas.
+
+A instância Cloud SQL foi parada para controle de custos. Não execute um deploy
+real enquanto o banco estiver parado: a etapa de migrations precisa de conexão.
+Antes de reativar recursos, revise a capacidade contratada e o custo estimado.
+
+Para publicar somente a configuração do Hosting, depois de validar o backend:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1
-```
-
-O script verifica acesso ao Firebase, envia o código respeitando `.gcloudignore`,
-constrói uma imagem com versão baseada na data/hora UTC, atualiza o job
-`gbeachfood-migrate` para essa imagem, executa migrations e aguarda o sucesso.
-Depois atualiza a imagem do serviço e publica o Firebase Hosting. Mantém as variáveis,
-os segredos, a conexão SQL e as permissões já cadastradas. O `.env` e o banco local
-não são enviados. Novas variáveis/segredos exigem configuração separada no Cloud Run.
-
-Qualquer erro interrompe os passos seguintes. Não há reversão automática das etapas
-já concluídas nem das migrations: mudanças no banco devem ser compatíveis com a
-versão do app que ainda está atendendo durante a publicação.
-
-Opções:
-
-```powershell
-# Mostra o plano sem chamar ferramentas externas nem publicar:
-.\deploy.ps1 -Plan
-
-# Somente alteracoes no firebase.json ou arquivos em firebase-public/:
 .\deploy.ps1 -HostingOnly
 ```
 
-Mudanças em Python, templates, CSS, JavaScript e dependências precisam do deploy
-completo, pois esses arquivos são servidos pela imagem do Cloud Run. Execute uma
-publicação por vez e teste o site ao terminar.
+Esse comando reativa um site desativado e não executa migrations nem liga o banco.
+Em 26/10/2026, a instância existente `gbeachfood` foi reduzida para Enterprise
+zonal (sem alta disponibilidade), com 1 vCPU e 4 GB RAM, e voltou a ficar parada
+(`STOPPED`, política `NEVER`). O disco permanece com 250 GB, mantendo cobrança
+de armazenamento mesmo com o banco parado. O objetivo é migrar para uma nova
+instância de 10 GB. Reduzir os 250 GB atuais exige uma migração de dados;
+o deploy não faz essa migração nem altera o tamanho da instância.
 
-Validação do script, sem nuvem ou credenciais:
+A tentativa de criar a instância menor em 26/10/2026 foi bloqueada por pendência
+na conta de faturamento. A conta aparecer vinculada ao projeto não significa que
+está liberada para criar recursos. Após regularizar, será necessário exportar e
+importar os dados, conferir usuários, saldos e pedidos e atualizar a conexão SQL
+no serviço Cloud Run e no job `gbeachfood-migrate`. Não exclua a instância antiga
+antes de validar a migração e preservar um backup.
+
+Restaurar estes arquivos não reativa o Hosting. Ele permanece desativado até uma
+publicação; retome o site somente depois de validar o banco e o backend.
+
+### Sessão e arquivos estáticos
+
+A produção usa o cookie `__session`, único encaminhado pelo Firebase Hosting, e `CSRF_USE_SESSIONS=True`. O token CSRF é
+fornecido no HTML para chamadas JavaScript e a proteção permanece ativa.
+Se o nome do cookie tiver mudado em um deploy anterior, será necessário novo login.
+O WhiteNoise serve arquivos estáticos. A PWA guarda somente recursos em `/static/`,
+sem armazenar páginas autenticadas ou respostas de APIs.
+Configure `ALLOWED_HOSTS` com `gbeachfood.web.app`, `gbeachfood.firebaseapp.com`
+e o host do serviço Cloud Run. Se houver
+origens HTTPS adicionais autorizadas, ajuste `CSRF_TRUSTED_ORIGINS`.
+Atualize a URL do webhook Asaas ao mudar o endereço público do app.
+
+### Validação sem publicar
 
 ```powershell
+python -B manage.py test --settings=gfood.test_settings
+node tests/login_recovery.test.cjs
+node tests/service_worker.test.cjs
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/deploy_smoke.ps1
 ```
 
-O teste simula as ferramentas e verifica ordem das etapas, uso da mesma imagem,
-interrupção em erros, restauração da pasta atual e modo somente Hosting. O deploy
-real depende da CLI instalada e das autenticações locais.
+O teste do deploy substitui a CLI por funções locais e não chama a nuvem.
+Valida a ordem das etapas, a mesma imagem, a interrupção em falhas e a restauração
+da pasta de trabalho. Os testes de sessão validam login, logout e CSRF por HTTPS com o filtro de cookies
+do Firebase Hosting.
 
 ### Arquivos de publicação
 
-- `Dockerfile`: instala Python e dependências, coleta estáticos e inicia Gunicorn
-  na porta `PORT`. Não executa migrations ao iniciar o servidor.
-- `.dockerignore` e `.gcloudignore`: enviam apenas as pastas de código e os arquivos
-  de build permitidos. Excluem `.env`, banco local, ambiente virtual e credenciais locais.
-- `gfood/production.py`: desabilita DEBUG e leitura de `.env`, exige PostgreSQL,
-  chave secreta e hosts; configura HTTPS e cookies seguros atrás do proxy Cloud Run.
-  A execução local continua usando `gfood.settings`.
-
-### Firebase Hosting (`gbeachfood.web.app`)
-
-A configuração de produção usa `SESSION_COOKIE_NAME="__session"` e
-`CSRF_USE_SESSIONS=True`, porque o Hosting encaminha apenas esse cookie ao backend.
-O template base disponibiliza o token CSRF no HTML para as chamadas JavaScript em
-todas as telas. A proteção CSRF permanece ativa. A troca de nome do cookie exige
-um novo login para sessões antigas.
-
-`firebase-public/` permanece sem páginas HTML: todas as rotas são encaminhadas ao
-Django. Não coloque `index.html` nessa pasta, pois ele substituiria a tela inicial.
-Os arquivos estáticos continuam sendo servidos pelo WhiteNoise. A configuração do
-Hosting define `Cache-Control: private, no-store`; a PWA armazena somente recursos
-em `/static/`, sem guardar páginas com tokens ou respostas de APIs.
-
-Antes do deploy do Hosting, publique uma imagem com esses ajustes no Cloud Run e
-inclua `gbeachfood.web.app` e `gbeachfood.firebaseapp.com` em `ALLOWED_HOSTS`, mantendo
-o host original do Cloud Run. Inclua as duas origens HTTPS em
-`CSRF_TRUSTED_ORIGINS`. Use `--update-env-vars` para preservar as outras variáveis.
-
-No Cloud Shell, a partir da pasta com `firebase.json`:
-
-```bash
-npx --yes firebase-tools login --no-localhost
-npx --yes firebase-tools deploy --only hosting --project=gbeachfood
-```
-
-A conta usada na CLI deve ter acesso ao projeto `gbeachfood`. A configuração já
-está criada; não é necessário executar `firebase init`. Não há migrations novas
-nesta mudança. Para testar o fluxo completo publicado, ainda é necessário criar
-um usuário, entrar pelo domínio web.app, executar uma ação autenticada e sair.
-
-Testes locais: `python -B manage.py test --settings=gfood.test_settings`,
-`node tests/login_recovery.test.cjs` e `node tests/service_worker.test.cjs`.
-Eles cobrem login, alteração de perfil, logout, rejeição de CSRF inválido, token em
-todos os dashboards e exclusão de páginas/APIs do cache da PWA. O filtro de cookies
-do Hosting é simulado; isso não substitui a validação na hospedagem real.
+- `firebase.json`, `.firebaserc` e `firebase-public/.gitkeep`: configuram o Hosting
+  e o encaminhamento para o Cloud Run; os estáticos são servidos pelo WhiteNoise.
+- `Dockerfile`: instala dependências, coleta estáticos e inicia Gunicorn na porta
+  `PORT`. Não executa migrations ao iniciar o servidor.
+- `.dockerignore` e `.gcloudignore`: enviam apenas código e arquivos de build,
+  excluindo credenciais, ambiente virtual e dados locais.
+- `gfood/production.py`: exige PostgreSQL, chave secreta e hosts; configura HTTPS
+  atrás do proxy Cloud Run. Localmente, o app usa `gfood.settings`.
 
 ### Configuração do serviço
 
@@ -399,7 +372,7 @@ no banco em base64. Imagens antigas que dependam de arquivos em `media/`, ou upl
 pelo Django Admin, precisam de armazenamento persistente antes de serem usados no deploy.
 
 Referências: [Django no Cloud Run](https://docs.cloud.google.com/python/django/run),
-[conexão com Cloud SQL](https://docs.cloud.google.com/sql/docs/postgres/connect-run) e
+[conexão com Cloud SQL](https://docs.cloud.google.com/sql/docs/postgres/connect-run),
 [cookies no Firebase Hosting](https://firebase.google.com/docs/hosting/manage-cache#using_cookies).
 
 ---
