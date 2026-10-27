@@ -275,6 +275,43 @@ antes de validar a migração e preservar um backup.
 Restaurar estes arquivos não reativa o Hosting. Ele permanece desativado até uma
 publicação; retome o site somente depois de validar o banco e o backend.
 
+### Pausa da hospedagem e retomada
+
+Em 26/10/2026, a hospedagem foi mantida em pausa a pedido do responsável:
+
+- Firebase Hosting: desativado; os arquivos de publicação foram preservados.
+- Cloud SQL `gbeachfood`: parado (`STOPPED`, `NEVER`), 1 vCPU, 4 GB RAM,
+  disponibilidade `ZONAL`, disco de 250 GB e backups preservados.
+- Cloud Run `gbeachfood`: a permissão pública `allUsers` / `roles/run.invoker`
+  foi removida. O serviço, a imagem e os segredos foram preservados.
+- A tentativa de configurar `--scaling=0` foi rejeitada por `BILLING_DISABLED`.
+  Portanto, não considerar o serviço configurado em escala manual zero.
+- Não foram encontradas execuções ativas dos jobs ou builds, nem gatilhos de
+  build nas regiões `southamerica-east1` e `global` consultadas.
+
+A pausa não zera as cobranças de armazenamento: disco SQL, backups, IP reservado,
+objetos de build/logs, imagens e versões de segredos podem continuar gerando custos.
+A consulta ao Artifact Registry também foi bloqueada pelo faturamento. Não foi
+possível auditar integralmente todos os custos do projeto. Não desvincular a conta
+de faturamento ou excluir recursos com dados como forma de pausa reversível.
+
+Não executar deploy, jobs ou reativar o banco até nova solicitação do responsável.
+Pagar a conta não é autorização para reativar o aplicativo. Quando solicitado:
+
+1. Verificar se o faturamento liberou as operações e aplicar `--scaling=0` ao
+   serviço Cloud Run antes de iniciar a manutenção do banco.
+2. Criar a instância Enterprise `ZONAL` aprovada, 1 vCPU, 4 GB RAM e 10 GB SSD.
+3. Reativar temporariamente a origem, migrar os dados e validar usuários, saldos,
+   pedidos, permissões e sequências; preservar um backup antes de remover a origem.
+4. Atualizar a conexão Cloud SQL no serviço e no job `gbeachfood-migrate`.
+5. Publicar e validar o backend com acesso autenticado; voltar à escala automática
+   (`--scaling=auto`) quando for necessário iniciar a validação.
+6. Restaurar `allUsers` com `roles/run.invoker` no serviço e publicar o Hosting
+   somente quando o banco e o backend estiverem prontos para acesso público.
+
+O `deploy.ps1` preserva a configuração de escala e de IAM existente; sozinho ele
+não restaura a permissão pública removida nesta pausa.
+
 ### Sessão e arquivos estáticos
 
 A produção usa o cookie `__session`, único encaminhado pelo Firebase Hosting, e `CSRF_USE_SESSIONS=True`. O token CSRF é
