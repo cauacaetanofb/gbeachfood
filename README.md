@@ -146,7 +146,7 @@ projeto_restaurante/
 | **CSS próprio responsivo** | Identidade visual do parque, sem dependência de framework CSS |
 | **JavaScript (Vanilla)** | Frontend interativo (SPA-like) |
 | **QR Code (qrcode)** | Geração de QR Codes para cartões |
-| **Asaas API** | Gateway de pagamento (PIX) |
+| **Asaas API** | Gateway de pagamento (PIX e cartão de crédito) |
 | **Gunicorn** | Servidor WSGI para produção |
 | **WhiteNoise** | Servir arquivos estáticos em produção |
 
@@ -330,6 +330,7 @@ Atualize a URL do webhook Asaas ao mudar o endereço público do app.
 python -B manage.py test --settings=gfood.test_settings
 node tests/login_recovery.test.cjs
 node tests/service_worker.test.cjs
+node tests/credit_recharge.test.cjs
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/deploy_smoke.ps1
 ```
 
@@ -414,15 +415,15 @@ Referências: [Django no Cloud Run](https://docs.cloud.google.com/python/django/
 
 ---
 
-## 💳 Integração Asaas (Pagamento PIX)
+## 💳 Integração Asaas (PIX e cartão de crédito)
 
-O sistema utiliza a [API do Asaas](https://docs.asaas.com) para processar recargas via PIX.
+O sistema utiliza a [API do Asaas](https://docs.asaas.com) para processar recargas via PIX e cartão de crédito à vista.
 
 ### Como funciona
 
 1. O cliente solicita uma recarga no app
-2. O sistema cria uma cobrança PIX no Asaas
-3. O Asaas retorna um **QR Code PIX** para pagamento
+2. O sistema cria uma cobrança PIX ou CREDIT_CARD no Asaas
+3. O app mostra o QR Code PIX ou um link para pagar com cartão na página do Asaas
 4. Após o pagamento, o Asaas envia um **webhook** confirmando
 5. O sistema **credita o saldo** automaticamente no cartão do cliente
 
@@ -430,6 +431,15 @@ O sistema utiliza a [API do Asaas](https://docs.asaas.com) para processar recarg
 
 - **Sandbox** (testes): `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3`
 - **Produção**: `ASAAS_BASE_URL=https://api.asaas.com/v3`
+
+A `ASAAS_API_KEY` precisa ser válida e pertencer ao mesmo ambiente da URL.
+HTTP 401 (`invalid_access_token`) indica chave recusada, não CPF inválido.
+Confira se a chave foi copiada integralmente e continua ativa no painel do Asaas;
+substitua-a no `.env` local e reinicie o servidor após a alteração. Em produção,
+a chave é gerenciada no Secret Manager. Não publique a chave em logs ou no Git.
+O app diferencia falhas de configuração, conexão e cadastro, sem expor respostas
+sensíveis do provedor. Um timeout pode deixar o resultado da solicitação incerto;
+confira o painel antes de repetir a criação.
 
 ### Webhook
 
@@ -441,14 +451,53 @@ https://gbeachfood.web.app/api/asaas/webhook/
 Eventos que devem ser habilitados:
 - `PAYMENT_CONFIRMED`
 - `PAYMENT_RECEIVED`
+- `PAYMENT_REFUNDED`
+- `PAYMENT_PARTIALLY_REFUNDED`
+- `PAYMENT_REFUND_IN_PROGRESS`
+- `PAYMENT_CHARGEBACK_REQUESTED`
+- `PAYMENT_CHARGEBACK_DISPUTE`
+- `PAYMENT_AWAITING_CHARGEBACK_REVERSAL`
+
+### Crédito à vista
+
+O cliente escolhe cartão de crédito, informa o valor (mínimo de R$ 5,00 no app)
+e abre a fatura `invoiceUrl` do Asaas. A cobrança é única, sem parcelamento;
+o app não recebe nem armazena número do cartão, validade ou CVV. Cobranças
+pendentes podem ser retomadas na tela de recarga sem gerar uma nova cobrança.
+
+Os pagamentos pertencem à conta Asaas da `ASAAS_API_KEY` configurada no servidor.
+Não há split nem transferência para outra conta. Confira se essa é a conta de
+recebimento desejada e se está habilitada para cartão de crédito. Taxas, análise
+de risco e prazo de disponibilização dependem do contrato e da conta no Asaas.
+
+`PAYMENT_CONFIRMED` pode liberar o saldo no parque antes de o dinheiro estar
+disponível para saque no Asaas; `PAYMENT_RECEIVED` indica disponibilidade na
+conta. Ambos creditam uma única vez, pelo valor bruto da recarga, sem descontar
+as tarifas do saldo do cliente. Navegar para a fatura, voltar ao app, autorizar o
+cartão ou passar pela análise de risco não libera saldo.
+
+Estorno (inclusive parcial ou em processamento) e contestação colocam a recarga
+em revisão e bloqueiam o cartão virtual do mesmo titular. Não há débito automático
+nem desbloqueio automático: o atendimento precisa reconciliar os valores, pois o
+saldo pode já ter sido utilizado. Confirmações posteriores não creditam novamente
+uma recarga em revisão. O Django Admin lista essas recargas e o evento recebido,
+sem permitir alterar seus dados financeiros diretamente.
+
+Antes de usar em produção, habilite os eventos acima no webhook da conta Asaas e
+valide no sandbox a fatura, confirmação e revisão. Os testes automatizados usam
+respostas simuladas e não substituem essa validação da conta. A hospedagem segue
+pausada; nenhuma cobrança ou publicação real foi executada por esta alteração.
+
+Referências: [pagamento por cartão](https://docs.asaas.com/docs/payments-via-credit-card),
+[eventos de cobrança](https://docs.asaas.com/docs/webhook-para-cobrancas).
 
 ---
 
 ## 🔐 Recargas e consistência do saldo
 
-- Recargas presenciais exigem perfil `caixa` ou `admin`. Clientes geram PIX; o crédito ocorre após confirmação autenticada.
+- Recargas presenciais exigem perfil `caixa` ou `admin`. Clientes geram cobranças PIX ou crédito; o crédito ocorre após confirmação autenticada.
 - Configure `ASAAS_WEBHOOK_TOKEN` no ambiente e use o mesmo valor como token de autenticação do webhook no painel Asaas. Esse token é diferente da chave da API. Sem configuração, o endpoint retorna HTTP 503; sem token válido na requisição, HTTP 401.
-- O webhook aceita POST e valida cobrança, valor, tipo PIX e status confirmado/recebido. A recarga é creditada uma única vez, mesmo com reenvios ou os dois eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED`.
+- O webhook aceita POST e valida cobrança, valor, forma de pagamento registrada e status confirmado/recebido. A recarga é creditada uma única vez, mesmo com reenvios ou os dois eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED`.
 - Cartão bloqueado ou que mudou de proprietário não recebe a recarga pendente: o webhook retorna HTTP 409, sem crédito, para revisão operacional.
 - Depósitos, retiradas, cancelamentos, transferências e pedidos gravam saldo e histórico na mesma transação. Uma falha desfaz todas as gravações da operação.
 - Valores monetários locais usam `Decimal`; entradas não finitas, negativas, acima do limite ou com fração de centavo são rejeitadas.
@@ -527,10 +576,10 @@ A configuração de testes ignora `.env`, usa SQLite em memória, senhas de test
 | POST | `/api/cards/block/` | Bloqueia cartão |
 | POST | `/api/cards/transfer/` | Transfere saldo |
 
-### Asaas — Pagamento PIX (`cards/`)
+### Asaas — PIX e crédito (`cards/`)
 | Método | Endpoint | Descrição |
 |---|---|---|
-| POST | `/api/asaas/create-payment/` | Cria cobrança PIX |
+| POST | `/api/asaas/create-payment/` | Cria cobrança PIX ou crédito (`metodo`: `pix` ou `credito`) |
 | POST | `/api/asaas/webhook/` | Recebe webhook do Asaas |
 | GET | `/api/asaas/check-payment/<id>/` | Verifica status do pagamento |
 

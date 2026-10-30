@@ -301,3 +301,9 @@ body:has(.modal-overlay.active), body:has(.sidebar.open) { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Recargas PIX e cartão */
+.payment-help { color: var(--text-secondary); font-size: .85rem; line-height: 1.6; margin: .6rem 0 1rem; }
+.payment-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.payment-actions > * { flex: 1 1 180px; text-align: center; }
+.payment-amount { color: var(--success); font-size: 1.5rem; font-weight: 800; margin: 1rem 0; }

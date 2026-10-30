@@ -87,11 +87,15 @@ class Recarga(models.Model):
         ('pendente', 'Pendente'),
         ('pago', 'Pago'),
         ('vencido', 'Vencido'),
+        ('revisao', 'Em revisão'),
     )
 
     card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='recargas', verbose_name='Cartão')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name='Usuário')
     valor = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Valor')
+    metodo = models.CharField(max_length=10, choices=(('pix', 'PIX'), ('credito', 'Cartão de Crédito')), default='pix', verbose_name='Método')
+    invoice_url = models.URLField(max_length=500, blank=True, verbose_name='Fatura Asaas')
+    evento_revisao = models.CharField(max_length=60, blank=True, verbose_name='Evento para revisão')
     asaas_payment_id = models.CharField(max_length=100, unique=True, verbose_name='ID Pagamento Asaas')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pendente', verbose_name='Status')
     criado_em = models.DateTimeField(auto_now_add=True)

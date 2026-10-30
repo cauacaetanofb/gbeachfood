@@ -1,8 +1,10 @@
-function switchTab(name) {
+function switchTab(name, button) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
-    event.target.closest('.tab-btn').classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        if (b.getAttribute('onclick').includes(`'${name}'`)) b.classList.add('active');
+    });
     if (name === 'saldo') loadExtrato();
 }
 
@@ -12,7 +14,8 @@ async function loadMyCard() {
         document.getElementById('qr-loading').style.display = 'none';
         const img = document.getElementById('my-qr-img');
         img.src = 'data:image/png;base64,' + data.card.qr_code_image;
-        img.style.display = 'block';
+        img.style.display = data.card.bloqueado ? 'none' : 'block';
+        document.getElementById('my-card-status').hidden = !data.card.bloqueado;
         document.getElementById('my-qr-label').textContent = data.card.qr_code_data;
         document.getElementById('my-saldo').textContent = `R$ ${parseFloat(data.card.saldo).toFixed(2)}`;
     } catch (e) {
@@ -24,58 +27,103 @@ function setValor(v) {
     document.getElementById('add-valor').value = v;
 }
 
-// ===== Integração PIX Asaas =====
+// ===== Recargas Asaas: PIX e crédito à vista =====
 let pixPollingInterval = null;
 let currentRecargaId = null;
+let pollingVersion = 0;
+let criandoRecarga = false;
+const formatMoney = value => Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-async function gerarPixRecarga() {
+function atualizarMetodoRecarga() {
+    const credito = document.getElementById('add-metodo').value === 'credito';
+    document.getElementById('add-valor').min = credito ? '5' : '1';
+    document.getElementById('btn-gerar-pix').textContent = credito ? 'Preparar pagamento com cartão' : 'Gerar PIX';
+    document.getElementById('recarga-ajuda').textContent = credito
+        ? 'Em 1 vez, na página do Asaas. Recarga mínima de R$ 5,00.'
+        : 'Pague com QR Code ou PIX copia e cola.';
+}
+
+function mostrarEtapaRecarga(id) {
+    ['pix-step-1', 'pix-step-2', 'pix-step-3', 'credit-step', 'payment-review'].forEach(name => {
+        document.getElementById(name).style.display = name === id ? 'block' : 'none';
+    });
+    if (id !== 'pix-step-1') document.getElementById('credit-pending').hidden = true;
+}
+
+function invoiceUrlSegura(value) {
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && !url.username && !url.password
+            && (!url.port || url.port === '443')
+            && ['asaas.com', 'www.asaas.com', 'sandbox.asaas.com', 'www.sandbox.asaas.com'].includes(url.hostname);
+    } catch (_) { return false; }
+}
+
+function mostrarPagamentoCredito(recarga) {
+    if (!invoiceUrlSegura(recarga.invoice_url)) throw new Error('Link de pagamento indisponível. Procure o atendimento.');
+    document.getElementById('credit-payment-link').href = recarga.invoice_url;
+    document.getElementById('credit-valor').textContent = formatMoney(recarga.valor);
+    mostrarEtapaRecarga('credit-step');
+    iniciarPolling(recarga.recarga_id || recarga.id);
+}
+
+async function carregarRecargasPendentes() {
+    try {
+        const data = await apiFetch('/api/asaas/pending-payments/');
+        const list = document.getElementById('credit-pending-list');
+        list.replaceChildren();
+        for (const recarga of data.recargas) {
+            if (!invoiceUrlSegura(recarga.invoice_url)) continue;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-secondary';
+            btn.textContent = `Continuar recarga de ${formatMoney(recarga.valor)}`;
+            btn.addEventListener('click', () => mostrarPagamentoCredito(recarga));
+            list.appendChild(btn);
+        }
+        document.getElementById('credit-pending').hidden = !list.children.length || currentRecargaId !== null;
+    } catch (_) { /* A criação de uma nova recarga continua disponível. */ }
+}
+
+async function gerarRecarga() {
+    if (criandoRecarga) return;
     const valor = document.getElementById('add-valor').value;
-    if (!valor || parseFloat(valor) < 1) {
-        showToast('Valor mínimo é R$ 1,00', 'error');
+    const metodo = document.getElementById('add-metodo').value;
+    const minimo = metodo === 'credito' ? 5 : 1;
+    if (!valor || !Number.isFinite(Number(valor)) || Number(valor) < minimo) {
+        showToast(`Valor mínimo é ${formatMoney(minimo)}`, 'error');
         return;
     }
-
+    criandoRecarga = true;
     const btn = document.getElementById('btn-gerar-pix');
     btn.disabled = true;
-    btn.textContent = 'Gerando...';
-
+    btn.textContent = 'Preparando...';
     try {
         const data = await apiFetch('/api/asaas/create-payment/', {
-            method: 'POST',
-            body: JSON.stringify({ valor: valor })
+            method: 'POST', body: JSON.stringify({ valor, metodo })
         });
-
-        if (!data.success) {
-            showToast(data.error || 'Erro ao gerar PIX', 'error');
-            return;
+        if (!data.success) throw new Error(data.error || 'Não foi possível criar a recarga.');
+        if (metodo === 'credito') {
+            mostrarPagamentoCredito(data);
+        } else {
+            document.getElementById('pix-qr-img').src = 'data:image/png;base64,' + data.pix_qr_code_image;
+            document.getElementById('pix-copia-cola').value = data.pix_copia_cola;
+            document.getElementById('pix-valor-display').textContent = formatMoney(data.valor);
+            mostrarEtapaRecarga('pix-step-2');
+            iniciarPolling(data.recarga_id);
         }
-
-        // Mostrar QR Code
-        currentRecargaId = data.recarga_id;
-        document.getElementById('pix-qr-img').src = 'data:image/png;base64,' + data.pix_qr_code_image;
-        document.getElementById('pix-copia-cola').value = data.pix_copia_cola;
-        document.getElementById('pix-valor-display').textContent = `R$ ${parseFloat(data.valor).toFixed(2)}`;
-
-        // Trocar para etapa 2
-        document.getElementById('pix-step-1').style.display = 'none';
-        document.getElementById('pix-step-2').style.display = 'block';
-
-        // Iniciar polling
-        iniciarPolling(data.recarga_id);
-
     } catch (e) {
         showToast(e.message, 'error');
     } finally {
+        criandoRecarga = false;
         btn.disabled = false;
-        btn.textContent = 'Gerar PIX';
+        atualizarMetodoRecarga();
     }
 }
 
 function copiarPix() {
     const input = document.getElementById('pix-copia-cola');
-    navigator.clipboard.writeText(input.value).then(() => {
-        showToast('Código PIX copiado!');
-    }).catch(() => {
+    navigator.clipboard.writeText(input.value).then(() => showToast('Código PIX copiado!')).catch(() => {
         input.select();
         document.execCommand('copy');
         showToast('Código PIX copiado!');
@@ -84,43 +132,42 @@ function copiarPix() {
 
 function iniciarPolling(recargaId) {
     pararPolling();
-    pixPollingInterval = setInterval(async () => {
+    currentRecargaId = recargaId;
+    const version = pollingVersion;
+    async function verificar() {
+        if (version !== pollingVersion) return;
         try {
             const data = await apiFetch(`/api/asaas/check-payment/${recargaId}/`);
-            if (data.status === 'pago') {
+            if (version !== pollingVersion) return;
+            if (data.status === 'pago' || data.status === 'revisao') {
                 pararPolling();
-                // Mostrar sucesso
-                document.getElementById('pix-step-2').style.display = 'none';
-                document.getElementById('pix-step-3').style.display = 'block';
-                document.getElementById('pix-valor-confirmado').textContent = `+ R$ ${parseFloat(data.valor).toFixed(2)}`;
-                // Atualizar saldo
+                mostrarEtapaRecarga(data.status === 'pago' ? 'pix-step-3' : 'payment-review');
+                if (data.status === 'pago') document.getElementById('pix-valor-confirmado').textContent = '+ ' + formatMoney(data.valor);
                 loadMyCard();
+                return;
             }
-        } catch (e) {
-            // Silenciar erros de polling
-        }
-    }, 3000); // Verificar a cada 3 segundos
+        } catch (_) { /* Tenta novamente; nunca presume pagamento pela navegação. */ }
+        if (version === pollingVersion) pixPollingInterval = setTimeout(verificar, 3000);
+    }
+    verificar();
 }
 
 function pararPolling() {
-    if (pixPollingInterval) {
-        clearInterval(pixPollingInterval);
-        pixPollingInterval = null;
-    }
+    pollingVersion++;
+    clearTimeout(pixPollingInterval);
+    pixPollingInterval = null;
+    currentRecargaId = null;
 }
 
 function cancelarPix() {
     pararPolling();
-    currentRecargaId = null;
-    document.getElementById('pix-step-2').style.display = 'none';
-    document.getElementById('pix-step-1').style.display = 'block';
+    mostrarEtapaRecarga('pix-step-1');
     document.getElementById('add-valor').value = '';
+    carregarRecargasPendentes();
 }
 
 function voltarPixInicio() {
-    document.getElementById('pix-step-3').style.display = 'none';
-    document.getElementById('pix-step-1').style.display = 'block';
-    document.getElementById('add-valor').value = '';
+    cancelarPix();
     loadExtrato();
 }
 
@@ -157,3 +204,5 @@ async function loadExtrato() {
 
 // Init
 loadMyCard();
+carregarRecargasPendentes();
+atualizarMetodoRecarga();

@@ -34,6 +34,7 @@
 <div id="tab-qrcode" class="tab-content active">
     <div class="surface-card virtual-card" style="text-align:center;">
         <h3>Meu cartão virtual</h3>
+        <p id="my-card-status" class="payment-help" role="status" hidden>Seu cartão está bloqueado. Procure o atendimento.</p>
         <div class="qr-container">
             <div id="qr-loading" class="loading"><div class="spinner"></div></div>
             <img id="my-qr-img" src="" alt="QR Code" style="display:none;">
@@ -59,11 +60,17 @@
     </div>
 </div>
 
-<!-- Tab: Adicionar Saldo via PIX -->
+<!-- Tab: Recarga PIX ou crédito -->
 <div id="tab-adicionar" class="tab-content">
+    <div id="credit-pending" class="surface-card" hidden>
+        <h3>Recargas por cartão em andamento</h3>
+        <p class="payment-help">Se você já iniciou uma recarga, continue por aqui.</p>
+        <div id="credit-pending-list" class="payment-actions"></div>
+    </div>
     <!-- Etapa 1: Escolher valor -->
     <div id="pix-step-1" class="surface-card">
-        <h3>Adicionar Saldo via PIX</h3>
+        <h3>Adicionar saldo</h3>
+        <p class="payment-help">Escolha como pagar. O saldo é liberado após a confirmação do pagamento.</p>
         <div class="dash-form">
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
                 <button class="btn-secondary" onclick="setValor(10)" style="flex:1;">R$ 10</button>
@@ -72,10 +79,18 @@
                 <button class="btn-secondary" onclick="setValor(100)" style="flex:1;">R$ 100</button>
             </div>
             <div class="field">
+                <label for="add-metodo">Forma de pagamento</label>
+                <select class="input" id="add-metodo" onchange="atualizarMetodoRecarga()">
+                    <option value="pix">PIX</option>
+                    <option value="credito">Cartão de crédito — 1 vez</option>
+                </select>
+                <p id="recarga-ajuda" class="payment-help">Pague com QR Code ou PIX copia e cola.</p>
+            </div>
+            <div class="field">
                 <label for="add-valor">Outro valor (R$)</label>
                 <input class="input" id="add-valor" type="number" step="0.01" min="1" placeholder="0.00">
             </div>
-            <button class="btn-primary" onclick="gerarPixRecarga()" id="btn-gerar-pix" style="width:100%;">Gerar PIX</button>
+            <button class="btn-primary" onclick="gerarRecarga()" id="btn-gerar-pix" style="width:100%;">Gerar PIX</button>
         </div>
     </div>
 
@@ -97,9 +112,25 @@
             <div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:0.3rem;"></div>
             Aguardando pagamento...
         </div>
-        <button class="btn-secondary" onclick="cancelarPix()" style="margin-top:1rem;width:100%;">Cancelar</button>
+        <button class="btn-secondary" onclick="cancelarPix()" style="margin-top:1rem;width:100%;">Voltar</button>
     </div>
 
+    <div id="credit-step" class="surface-card" style="display:none;text-align:center;">
+        <h3>Pague com cartão de crédito</h3>
+        <p class="payment-help">Pagamento em 1 vez, na página do Asaas. Seus dados de cartão são informados lá.</p>
+        <p id="credit-valor" class="payment-amount"></p>
+        <div class="payment-actions">
+            <a id="credit-payment-link" class="btn-primary" target="_blank" rel="noopener noreferrer">Continuar no Asaas</a>
+            <button type="button" class="btn-secondary" onclick="cancelarPix()">Voltar</button>
+        </div>
+        <p class="payment-help" role="status">Após pagar, volte a esta página. A confirmação pode levar alguns instantes.</p>
+        <p class="payment-help">Voltar não cancela a cobrança.</p>
+    </div>
+    <div id="payment-review" class="surface-card" style="display:none;" role="status">
+        <h3>Recarga em revisão</h3>
+        <p>Esta recarga precisa ser conferida pelo atendimento. Procure o caixa antes de usar seu saldo ou realizar outro pagamento.</p>
+        <button type="button" class="btn-secondary" onclick="cancelarPix()">Voltar</button>
+    </div>
     <!-- Etapa 3: Sucesso -->
     <div id="pix-step-3" class="surface-card" style="display:none;text-align:center;">
         <div style="font-size:3rem;margin-bottom:0.5rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#check"></use></svg></div>
@@ -112,5 +143,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_cliente.js' %}?v=6"></script>
+<script src="{% static 'js/dashboard_cliente.js' %}?v=7"></script>
 {% endblock %}

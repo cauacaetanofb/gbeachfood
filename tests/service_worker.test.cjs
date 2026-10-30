@@ -14,7 +14,7 @@ const context = vm.createContext({
     },
     caches: {
         open: async () => ({ addAll: async urls => { precached = urls; }, put: async () => {} }),
-        keys: async () => ['gfood-v3', 'gfood-v4', 'gfood-v5', 'gfood-v6', 'gfood-v7', 'gfood-v8', 'unrelated'],
+        keys: async () => ['gfood-v3', 'gfood-v4', 'gfood-v5', 'gfood-v6', 'gfood-v7', 'gfood-v8', 'gfood-v9', 'unrelated'],
         delete: async key => deleted.push(key),
         match: async () => new Response('offline-static'),
     },
@@ -28,7 +28,7 @@ new vm.Script(fs.readFileSync(path.join(__dirname, '../static/sw.js'), 'utf8')).
     assert.ok(precached.every(url => url.startsWith('/static/')));
     handlers.activate({ waitUntil(p) { pending = p; } });
     await pending;
-    assert.deepEqual(deleted, ['gfood-v3', 'gfood-v4', 'gfood-v5', 'gfood-v6', 'gfood-v7']);
+    assert.deepEqual(deleted, ['gfood-v3', 'gfood-v4', 'gfood-v5', 'gfood-v6', 'gfood-v7', 'gfood-v8']);
     for (const [method, url] of [
         ['GET', '/'], ['GET', '/login/'], ['GET', '/dashboard/'],
         ['GET', '/api/profile/'], ['POST', '/api/profile/update/'],

@@ -1,8 +1,10 @@
 import base64
 import io
+import logging
 import qrcode
 from decimal import Decimal as D
 from datetime import date, timedelta
+from urllib.parse import urlsplit
 import requests as http_requests
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings as django_settings
@@ -11,9 +13,11 @@ from django.utils.crypto import constant_time_compare
 from .validation import money, json_api, InvalidInput, MAX_AMOUNT, positive_id
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 
 from .models import Card, Transaction, Recarga
+
+logger = logging.getLogger(__name__)
 
 
 def _payment_method(data):
@@ -54,6 +58,7 @@ def api_my_card(request):
             'saldo': str(card.saldo),
             'qr_code_data': str(card.qr_code_data),
             'qr_code_image': qr_b64,
+            'bloqueado': card.bloqueado,
         }
     })
 
@@ -184,7 +189,7 @@ def api_create_temp_card(request):
 def api_client_add_balance(request):
     """Rota antiga desativada: crédito do app exige confirmação PIX."""
     return JsonResponse({
-        'error': 'Recarga direta desativada. Gere um PIX para adicionar saldo.',
+        'error': 'Recarga direta desativada. Use uma cobrança Asaas para adicionar saldo.',
     }, status=410)
 
 
@@ -372,143 +377,176 @@ def _asaas_url(path):
     return f'{base}/{path.lstrip("/")}'
 
 
+class _AsaasError(Exception):
+    """Falha do provedor com mensagem pública controlada, sem dados da resposta."""
+
+    def __init__(self, message, *, code, status=502):
+        super().__init__(message)
+        self.code = code
+        self.status = status
+
+    def response(self):
+        return JsonResponse({'error': str(self), 'code': self.code}, status=self.status)
+
+
+def _asaas_post(path, payload):
+    try:
+        response = http_requests.post(_asaas_url(path), json=payload,
+                                      headers=_asaas_headers(), timeout=15)
+    except http_requests.Timeout:
+        raise _AsaasError(
+            'O Asaas demorou para responder. Procure o atendimento antes de tentar novamente.',
+            code='asaas_timeout', status=504) from None
+    except http_requests.RequestException:
+        raise _AsaasError(
+            'Não foi possível conectar ao serviço de pagamentos. Tente novamente em instantes.',
+            code='asaas_connection') from None
+
+    # Classifica HTTP antes do JSON: um erro de autenticação também pode vir em HTML.
+    if response.status_code in (401, 403):
+        logger.warning('Asaas: autenticação ou acesso recusado em %s (HTTP %s). '
+                       'Verifique ASAAS_API_KEY e o ambiente ASAAS_BASE_URL.', path, response.status_code)
+        raise _AsaasError(
+            'Pagamentos indisponíveis por uma falha na configuração do serviço. Procure o atendimento.',
+            code='asaas_authentication', status=503)
+    if response.status_code == 429 or response.status_code >= 500:
+        raise _AsaasError('O serviço de pagamentos está indisponível. Tente novamente em instantes.',
+                          code='asaas_unavailable', status=503)
+    try:
+        data = response.json()
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        raise _AsaasError('O serviço de pagamentos retornou uma resposta inválida. Procure o atendimento.',
+                          code='asaas_invalid_response')
+    return response.status_code, data
+
+
 def _get_or_create_asaas_customer(user):
     """Cria o customer no Asaas se ainda não existir."""
     if user.asaas_customer_id:
         return user.asaas_customer_id
 
-    # Exige CPF válido
-    cpf_limpo = ''.join(c for c in (user.cpf or '') if c.isdigit())
+    cpf_limpo = ''.join(c for c in (user.cpf or '') if c in '0123456789')
     if len(cpf_limpo) != 11:
-        raise Exception('CPF inválido ou não cadastrado. Atualize seu CPF no perfil.')
+        raise InvalidInput('CPF inválido ou não cadastrado. Atualize seu CPF no perfil.')
 
-    payload = {
-        'name': user.first_name or user.username,
-        'cpfCnpj': cpf_limpo,
-    }
+    payload = {'name': user.first_name or user.username, 'cpfCnpj': cpf_limpo}
     if user.email:
         payload['email'] = user.email
-
-    url = _asaas_url('customers')
-    headers = _asaas_headers()
-
-    resp = http_requests.post(
-        url,
-        json=payload,
-        headers=headers,
-        timeout=15,
-    )
-
-
-    try:
-        data = resp.json()
-    except Exception:
-        raise Exception(f'Asaas retornou resposta inválida (HTTP {resp.status_code}) em {url}: {resp.text[:200]}')
-
-    if resp.status_code >= 400:
-        raise Exception(data.get('errors', [{'description': 'Erro ao criar cliente no Asaas'}])[0].get('description', 'Erro desconhecido'))
-
-    user.asaas_customer_id = data['id']
+    status, data = _asaas_post('customers', payload)
+    if status >= 400:
+        raise _AsaasError(
+            'O Asaas não aceitou o cadastro do pagador. Confira os dados do perfil ou procure o atendimento.',
+            code='asaas_customer_rejected', status=400)
+    customer_id = data.get('id')
+    if not isinstance(customer_id, str) or not customer_id.strip() or len(customer_id) > 100:
+        raise _AsaasError('Não foi possível confirmar o cadastro no serviço de pagamentos. Procure o atendimento.',
+                          code='asaas_invalid_response')
+    user.asaas_customer_id = customer_id
     user.save(update_fields=['asaas_customer_id'])
-    return data['id']
+    return customer_id
+
+
+def _safe_invoice_url(value):
+    if not isinstance(value, str) or len(value) > 500:
+        return ''
+    try:
+        url = urlsplit(value)
+        hosts = {'asaas.com', 'www.asaas.com', 'sandbox.asaas.com', 'www.sandbox.asaas.com'}
+        if (url.scheme == 'https' and url.hostname in hosts and not url.username
+                and not url.password and url.port in (None, 443)):
+            return value
+    except ValueError:
+        pass
+    return ''
 
 
 @login_required
 @require_POST
 @json_api
 def api_asaas_create_payment(request):
-    """Cria cobrança PIX no Asaas e retorna QR Code."""
+    """Cria PIX ou fatura de crédito à vista; nunca recebe dados do cartão."""
     if request.user.user_type != 'cliente':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
-
     data = request.json_data
-    valor = money(data.get('valor'), minimum=D('1.00'))
+    if set(data) - {'valor', 'metodo'}:
+        raise InvalidInput('Informe apenas o valor e a forma de pagamento. O cartão é informado no Asaas.')
+    metodo = data.get('metodo', 'pix')
+    if metodo not in ('pix', 'credito'):
+        raise InvalidInput('Forma de pagamento inválida.')
+    valor = money(data.get('valor'), minimum=D('5.00') if metodo == 'credito' else D('1.00'))
+    card, _ = Card.objects.get_or_create(user=request.user)
+    _validate_credit(card, valor)
+    if not django_settings.ASAAS_API_KEY.strip():
+        return JsonResponse({'error': 'Pagamentos temporariamente indisponíveis.'}, status=503)
 
-    # Criar customer no Asaas se necessário
     try:
         customer_id = _get_or_create_asaas_customer(request.user)
-    except Exception as e:
-        return JsonResponse({'error': f'Erro ao conectar com Asaas: {str(e)}'}, status=500)
-
-    # Criar cobrança PIX
-    due_date = (date.today() + timedelta(days=1)).isoformat()
-    payment_payload = {
-        'customer': customer_id,
-        'billingType': 'PIX',
-        'value': float(valor),  # Somente serialização da API; cálculos locais usam Decimal.
-        'dueDate': due_date,
-        'description': f'Recarga GFood - R$ {valor:.2f}',
-    }
-
-    try:
-        resp = http_requests.post(
-            _asaas_url('payments'),
-            json=payment_payload,
-            headers=_asaas_headers(),
-            timeout=15,
-        )
-        try:
-            payment = resp.json()
-        except Exception:
-            return JsonResponse({
-                'error': f'Asaas retornou resposta inválida (HTTP {resp.status_code}): {resp.text[:300]}'
-            }, status=500)
-
-        # Se o customer é inválido (migração sandbox→produção), recria
-        if resp.status_code >= 400:
-            error_msg = payment.get('errors', [{}])[0].get('description', '') if payment.get('errors') else ''
-            if 'ustomer' in error_msg.lower() or 'inválido' in error_msg.lower():
-                # Limpa customer_id antigo e cria novo
+        payment_payload = {
+            'customer': customer_id,
+            'billingType': 'CREDIT_CARD' if metodo == 'credito' else 'PIX',
+            'value': float(valor),  # Apenas serialização; cálculos locais usam Decimal.
+            'dueDate': (date.today() + timedelta(days=1)).isoformat(),
+            'description': f'Recarga GBeachFood - R$ {valor:.2f}',
+        }
+        # Sem installmentCount/creditCard: cobrança única, paga na página do Asaas.
+        status, payment = _asaas_post('payments', payment_payload)
+        if status >= 400:
+            errors = payment.get('errors')
+            invalid_customer = isinstance(errors, list) and any(
+                isinstance(e, dict) and e.get('code') == 'invalid_customer' for e in errors)
+            if invalid_customer:
                 request.user.asaas_customer_id = ''
                 request.user.save(update_fields=['asaas_customer_id'])
-                try:
-                    new_customer_id = _get_or_create_asaas_customer(request.user)
-                    payment_payload['customer'] = new_customer_id
-                    resp = http_requests.post(
-                        _asaas_url('payments'),
-                        json=payment_payload,
-                        headers=_asaas_headers(),
-                        timeout=15,
-                    )
-                    payment = resp.json()
-                    if resp.status_code >= 400:
-                        error_msg = payment.get('errors', [{'description': 'Erro ao criar cobrança'}])[0].get('description', 'Erro desconhecido')
-                        return JsonResponse({'error': error_msg}, status=400)
-                except Exception as e:
-                    return JsonResponse({'error': f'Erro ao recriar cliente: {str(e)}'}, status=500)
-            else:
-                return JsonResponse({'error': error_msg or 'Erro ao criar cobrança'}, status=400)
-    except Exception as e:
-        return JsonResponse({'error': f'Erro de conexão: {str(e)}'}, status=500)
+                payment_payload['customer'] = _get_or_create_asaas_customer(request.user)
+                status, payment = _asaas_post('payments', payment_payload)
+            if status >= 400:
+                raise _AsaasError(
+                    'O Asaas não permitiu criar a cobrança. Confira seu cadastro ou procure o atendimento.',
+                    code='asaas_payment_rejected', status=400)
+        if not isinstance(payment.get('id'), str) or not payment['id']:
+            raise _AsaasError('Não foi possível confirmar a cobrança no serviço de pagamentos. Procure o atendimento.',
+                              code='asaas_invalid_response')
+    except InvalidInput:
+        raise  # Erro do perfil é HTTP 400, sem confundir com falha do provedor.
+    except _AsaasError as error:
+        return error.response()
+    except Exception:
+        logger.warning('Asaas: falha inesperada ao preparar a recarga.')
+        return JsonResponse({'error': 'Não foi possível obter a cobrança no Asaas. Procure o atendimento.',
+                             'code': 'asaas_unexpected_error'}, status=502)
 
-    # Buscar QR Code PIX
+    invoice_url = _safe_invoice_url(payment.get('invoiceUrl')) if metodo == 'credito' else ''
+    recarga = Recarga.objects.create(card=card, user=request.user, valor=valor,
+        asaas_payment_id=payment['id'], metodo=metodo, invoice_url=invoice_url)
+    if metodo == 'credito':
+        if not invoice_url:
+            return JsonResponse({'error': 'Cobrança criada, mas o link não está disponível. Procure o atendimento antes de criar outra.'}, status=502)
+        return JsonResponse({'success': True, 'recarga_id': recarga.pk,
+                             'metodo': metodo, 'invoice_url': invoice_url, 'valor': str(valor)})
     try:
-        pix_resp = http_requests.get(
-            _asaas_url(f'payments/{payment["id"]}/pixQrCode'),
-            headers=_asaas_headers(),
-            timeout=15,
-        )
+        pix_resp = http_requests.get(_asaas_url(f'payments/{payment["id"]}/pixQrCode'),
+                                     headers=_asaas_headers(), timeout=15)
         pix_data = pix_resp.json()
+        if not isinstance(pix_data, dict):
+            raise ValueError('Invalid QR response')
     except Exception:
         pix_data = {}
-
-    # Salvar recarga pendente
-    card, _ = Card.objects.get_or_create(user=request.user)
-    recarga = Recarga.objects.create(
-        card=card,
-        user=request.user,
-        valor=valor,
-        asaas_payment_id=payment['id'],
-        status='pendente',
-    )
-
-    return JsonResponse({
-        'success': True,
-        'recarga_id': recarga.id,
+    return JsonResponse({'success': True, 'recarga_id': recarga.pk, 'metodo': metodo,
         'pix_qr_code_image': pix_data.get('encodedImage', ''),
-        'pix_copia_cola': pix_data.get('payload', ''),
-        'valor': f'{valor:.2f}',
-    })
+        'pix_copia_cola': pix_data.get('payload', ''), 'valor': str(valor)})
+
+
+@login_required
+@require_GET
+def api_asaas_pending_payments(request):
+    if request.user.user_type != 'cliente':
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+    recargas = Recarga.objects.filter(user=request.user, card__user=request.user,
+        card__bloqueado=False, metodo='credito', status='pendente').exclude(invoice_url='')[:10]
+    return JsonResponse({'recargas': [{'id': r.pk, 'valor': str(r.valor),
+        'invoice_url': url} for r in recargas if (url := _safe_invoice_url(r.invoice_url))]})
 
 
 @csrf_exempt
@@ -529,20 +567,40 @@ def api_asaas_webhook(request):
 def _process_asaas_webhook(request):
     data = request.json_data
     event = data.get('event')
-    if event not in ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'):
+    review_events = {'PAYMENT_REFUNDED', 'PAYMENT_PARTIALLY_REFUNDED',
+        'PAYMENT_REFUND_IN_PROGRESS', 'PAYMENT_CHARGEBACK_REQUESTED',
+        'PAYMENT_CHARGEBACK_DISPUTE', 'PAYMENT_AWAITING_CHARGEBACK_REVERSAL'}
+    if event not in {'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'} | review_events:
         return JsonResponse({'ok': True})
     payment = data.get('payment')
     if not isinstance(payment, dict) or not isinstance(payment.get('id'), str) or not payment['id']:
         raise InvalidInput('Pagamento inválido.')
     amount = money(payment.get('value'))
-    if payment.get('billingType') != 'PIX' or payment.get('status') not in ('CONFIRMED', 'RECEIVED'):
-        raise InvalidInput('Confirmação PIX inválida.')
+    if payment.get('billingType') not in ('PIX', 'CREDIT_CARD'):
+        raise InvalidInput('Forma de pagamento inválida.')
+    if event not in review_events and payment.get('status') != event.removeprefix('PAYMENT_'):
+        raise InvalidInput('Confirmação de pagamento inválida.')
 
     recarga = Recarga.objects.select_for_update().filter(asaas_payment_id=payment['id']).first()
     if recarga is None:
         return JsonResponse({'ok': True})  # Cobrança não pertence às recargas do app.
+    expected_type = 'CREDIT_CARD' if recarga.metodo == 'credito' else 'PIX'
+    if payment.get('billingType') != expected_type:
+        raise InvalidInput('Forma de pagamento não corresponde à recarga.')
     if amount != recarga.valor:
         raise InvalidInput('Valor do pagamento não corresponde à recarga.')
+    if event in review_events:
+        card = Card.objects.select_for_update().get(pk=recarga.card_id)
+        recarga.status = 'revisao'
+        recarga.evento_revisao = event
+        recarga.save(update_fields=['status', 'evento_revisao'])
+        # Não deduz automaticamente valores já consumidos nem credita novamente
+        # após uma disputa: o atendimento precisa reconciliar o saldo e o Asaas.
+        if card.user_id == recarga.user_id and not card.bloqueado:
+            card.bloqueado = True
+            card.motivo_bloqueio = f'Revisar recarga Asaas {recarga.asaas_payment_id}: {event}'[:255]
+            card.save(update_fields=['bloqueado', 'motivo_bloqueio'])
+        return JsonResponse({'ok': True})
     if recarga.status != 'pendente':
         return JsonResponse({'ok': True})  # CONFIRMED e RECEIVED creditam uma única vez.
 
@@ -556,13 +614,14 @@ def _process_asaas_webhook(request):
     recarga.status = 'pago'
     recarga.save(update_fields=['status'])
     Transaction.objects.create(
-        card=card, tipo='deposito', valor=recarga.valor, metodo='pix', origem='app',
-        descricao='Recarga via PIX (Asaas)', operador_id=recarga.user_id,
+        card=card, tipo='deposito', valor=recarga.valor, metodo=recarga.metodo, origem='app',
+        descricao=f'Recarga via {recarga.get_metodo_display()} (Asaas)', operador_id=recarga.user_id,
     )
     return JsonResponse({'ok': True})
 
 
 @login_required
+@require_GET
 def api_asaas_check_payment(request, recarga_id):
     """Cliente verifica se o pagamento foi confirmado."""
     if request.user.user_type != 'cliente':
@@ -571,6 +630,7 @@ def api_asaas_check_payment(request, recarga_id):
         recarga = Recarga.objects.get(id=recarga_id, user=request.user)
         return JsonResponse({
             'status': recarga.status,
+            'metodo': recarga.metodo,
             'valor': str(recarga.valor),
         })
     except Recarga.DoesNotExist:
