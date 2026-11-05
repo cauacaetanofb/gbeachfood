@@ -1,6 +1,9 @@
 import base64
 import io
 import logging
+import hashlib
+import json
+from uuid import UUID
 import qrcode
 from decimal import Decimal as D
 from datetime import date, timedelta
@@ -13,9 +16,11 @@ from django.utils.crypto import constant_time_compare
 from .validation import money, json_api, InvalidInput, MAX_AMOUNT, positive_id
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST, require_GET
 
-from .models import Card, Transaction, Recarga
+from .models import Card, Transaction, Recarga, CardIssuance
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +150,12 @@ def api_create_temp_card(request):
     if request.user.user_type not in ('admin', 'caixa'):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
     data = request.json_data
+    if set(data) - {'nome', 'cpf', 'telefone', 'valor', 'metodo', 'incluir_cartao_fisico', 'request_id'}:
+        raise InvalidInput('Atualize a página. O novo cartão e seu QR Code são gerados automaticamente.')
+    try:
+        request_id = UUID(str(data.get('request_id', '')))
+    except (ValueError, TypeError, AttributeError):
+        raise InvalidInput('Solicitação inválida. Atualize a página antes de criar o cartão.') from None
     nome = data.get('nome', '')
     cpf = data.get('cpf', '')
     telefone = data.get('telefone', '')
@@ -153,35 +164,65 @@ def api_create_temp_card(request):
             raise InvalidInput('Dados do cliente inválidos.')
     if not nome.strip():
         raise InvalidInput('Nome é obrigatório.')
+    nome, cpf, telefone = nome.strip(), cpf.strip(), telefone.strip()
+    if cpf and (len(''.join(c for c in cpf if c in '0123456789')) != 11
+                or any(c not in '0123456789.- ' for c in cpf)):
+        raise InvalidInput('Informe um CPF com 11 dígitos ou deixe o campo vazio.')
     valor = money(data.get('valor'))
     metodo = _payment_method(data)
-    qr_data = data.get('qr_data')
-    if qr_data:
-        try:
-            card = Card.objects.select_for_update().get(qr_code_data=qr_data)
-        except Card.DoesNotExist:
-            return JsonResponse({'error': 'QR Code do cartão físico não encontrado'}, status=404)
-        if card.user_id is not None:
-            raise InvalidInput('Este cartão já pertence a um usuário cadastrado.')
-        card.bloqueado = False
-        card.motivo_bloqueio = ''
-        _validate_credit(card, valor)
-        card.saldo += valor
-        card.is_temporary = True
-        card.nome, card.cpf, card.telefone = nome.strip(), cpf, telefone
-        card.save()
+    incluir = data.get('incluir_cartao_fisico', False)
+    if type(incluir) is not bool:
+        raise InvalidInput('A opção de cartão físico deve ser marcada ou desmarcada.')
+    # O preço é definido aqui, nunca aceito do navegador, e não compõe o saldo.
+    valor_cartao = D('2.00') if incluir else D('0.00')
+    fingerprint = hashlib.sha256(json.dumps(
+        [nome, cpf, telefone, str(valor), metodo, incluir], ensure_ascii=False).encode()).hexdigest()
+    issuance, created = CardIssuance.objects.get_or_create(pk=request_id, defaults={
+        'operador': request.user, 'request_hash': fingerprint,
+        'valor_inicial': valor, 'valor_cartao': valor_cartao, 'metodo': metodo,
+    })
+    if not created and (issuance.operador_id != request.user.pk or issuance.request_hash != fingerprint):
+        return JsonResponse({'error': 'Esta solicitação já foi usada. Consulte o cartão antes de iniciar outra emissão.'}, status=409)
+    if created:
+        card = Card.objects.create(is_temporary=True, nome=nome, cpf=cpf, telefone=telefone, saldo=valor)
+        Transaction.objects.create(
+            card=card, tipo='deposito', valor=valor, metodo=metodo, origem='caixa',
+            cpf_cliente=cpf, descricao='Saldo inicial do cartão temporário', operador=request.user,
+        )
+        if incluir:
+            Transaction.objects.create(
+                card=card, tipo='cartao', valor=valor_cartao, metodo=metodo, origem='caixa',
+                cpf_cliente=cpf, descricao='Venda de cartão físico em branco para etiqueta', operador=request.user,
+            )
+        issuance.card = card
+        issuance.save(update_fields=['card'])
     else:
-        card = Card.objects.create(is_temporary=True, nome=nome.strip(), cpf=cpf,
-                                   telefone=telefone, saldo=valor)
-    Transaction.objects.create(
-        card=card, tipo='deposito', valor=valor, metodo=metodo, origem='caixa',
-        descricao=f'Recarga presencial — novo cartão para {nome}'[:255], operador=request.user,
-    )
-    return JsonResponse({'success': True, 'card': {
+        card = issuance.card
+    if card is None or card.bloqueado or not card.is_temporary:
+        return JsonResponse({'error': 'Esta emissão pertence a um cartão cancelado. Consulte o atendimento anterior.'}, status=409)
+    response = JsonResponse({'success': True, 'created': created, 'card': {
         'id': card.id, 'nome': card.nome, 'saldo': str(card.saldo),
         'qr_code_data': str(card.qr_code_data),
         'qr_code_image': generate_qr_base64(str(card.qr_code_data)),
-    }})
+        'label_url': reverse('card_label', args=[card.pk]),
+    }, 'valor_inicial': str(issuance.valor_inicial), 'valor_cartao': str(issuance.valor_cartao),
+        'total_cobrado': str(issuance.valor_inicial + issuance.valor_cartao)})
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@login_required
+@require_GET
+def card_label(request, card_id):
+    if request.user.user_type not in ('admin', 'caixa'):
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+    card = get_object_or_404(Card, pk=card_id, is_temporary=True, bloqueado=False, user__isnull=True)
+    response = render(request, 'card_label.html', {
+        'card': card, 'card_number': f'{card.pk:06d}',
+        'qr_image': generate_qr_base64(str(card.qr_code_data)),
+    })
+    response['Cache-Control'] = 'private, no-store'
+    return response
 
 
 @login_required
@@ -313,7 +354,7 @@ def api_block_card(request):
     card.is_temporary = False
     card.user = None
     card.save()
-    return JsonResponse({'success': True, 'message': 'Cartão cancelado e liberado para reutilização'})
+    return JsonResponse({'success': True, 'message': 'Cartão cancelado. Para outro atendimento, crie e imprima uma nova etiqueta.'})
 
 
 # ===== Transferir Saldo =====

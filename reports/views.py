@@ -9,6 +9,17 @@ from orders.models import Order, OrderItem
 from cards.models import Transaction
 
 
+def card_sales_summary(transactions):
+    sales = transactions.filter(tipo='cartao', origem='caixa')
+    totals = sales.aggregate(total=Sum('valor'), count=Count('id'))
+    methods = sales.values('metodo').annotate(total=Sum('valor'), count=Count('id')).order_by('metodo')
+    labels = dict(Transaction.METODO_CHOICES)
+    return {'total': str(totals['total'] or 0), 'count': totals['count'], 'por_metodo': [
+        {'metodo': labels.get(item['metodo'], item['metodo']), 'total': str(item['total']), 'count': item['count']}
+        for item in methods
+    ]}
+
+
 @login_required
 def api_sales_report(request):
     if request.user.user_type != 'admin':
@@ -94,6 +105,7 @@ def api_sales_report(request):
 
     return JsonResponse({
         'period': period,
+        'vendas_cartoes': card_sales_summary(transactions),
         'total_vendas': str(totals['total_vendas'] or 0),
         'total_pedidos': totals['total_pedidos'],
         'total_depositos': str(depositos['total'] or 0),
@@ -166,7 +178,8 @@ def api_caixa_daily_report(request):
     # Depósitos APENAS do caixa (presenciais)
     metodo_labels = dict(Transaction.METODO_CHOICES)
     dep_caixa = transactions.filter(tipo='deposito', origem='caixa')
-    depositos_por_metodo = dep_caixa.values('metodo').annotate(
+    # Recebimentos presenciais: crédito de consumo e venda do cartão, sem débito do saldo.
+    depositos_por_metodo = transactions.filter(origem='caixa', tipo__in=['deposito', 'cartao']).values('metodo').annotate(
         total=Sum('valor'),
         count=Count('id')
     ).order_by('-total')
@@ -189,6 +202,7 @@ def api_caixa_daily_report(request):
 
     return JsonResponse({
         'data': now.strftime('%d/%m/%Y'),
+        'vendas_cartoes': card_sales_summary(transactions),
         'total_vendas': str(totals['total_vendas'] or 0),
         'total_pedidos': totals['total_pedidos'],
         'total_depositos': str(depositos['total'] or 0),
@@ -214,7 +228,7 @@ def api_caixa_daily_report(request):
 
 @login_required
 def api_all_transactions(request):
-    """Lista todas as transações de pagamento com filtros de data e busca."""
+    """Lista pagamentos de consumo e vendas de cartões físicos."""
     if request.user.user_type != 'admin':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
@@ -230,13 +244,13 @@ def api_all_transactions(request):
             day = datetime.strptime(date_str, '%Y-%m-%d')
             start = timezone.make_aware(day.replace(hour=0, minute=0, second=0))
             end = timezone.make_aware(day.replace(hour=23, minute=59, second=59))
-            txns = Transaction.objects.filter(tipo='pagamento', criado_em__range=(start, end))
+            txns = Transaction.objects.filter(tipo__in=['pagamento', 'cartao'], criado_em__range=(start, end))
         except ValueError:
-            txns = Transaction.objects.filter(tipo='pagamento')
+            txns = Transaction.objects.filter(tipo__in=['pagamento', 'cartao'])
     else:
         now = timezone.now()
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        txns = Transaction.objects.filter(tipo='pagamento', criado_em__gte=start)
+        txns = Transaction.objects.filter(tipo__in=['pagamento', 'cartao'], criado_em__gte=start)
 
     # Filtrar por busca (CPF ou nome do vendedor)
     if search:
@@ -273,6 +287,7 @@ def api_all_transactions(request):
 
         result.append({
             'id': t.id,
+            'tipo_label': t.get_tipo_display(),
             'valor': str(t.valor),
             'metodo': metodo_labels.get(t.metodo, t.metodo),
             'cpf_cliente': t.cpf_cliente or '',

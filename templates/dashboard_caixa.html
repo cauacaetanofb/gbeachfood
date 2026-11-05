@@ -153,33 +153,35 @@
 <div id="tab-cartao" class="tab-content">
     <div class="surface-card">
         <h3>Criar Cartão Temporário</h3>
-        <div class="dash-form">
+        <p class="temp-card-help">Crie o cartão do cliente e imprima o QR Code em uma etiqueta. O cartão físico em branco é opcional.</p>
+        <form class="dash-form" id="temp-card-form" data-operator-id="{{ user.pk }}">
+            <fieldset id="tc-fields" class="temp-card-fields">
             <div class="field">
-                <label>Vincular a Cartão Físico (QR Code)</label>
-                <div style="display:flex;gap:0.5rem;">
-                    <input class="input" id="tc-qr-input" placeholder="Opcional. UUID do cartão">
-                    <button class="btn-secondary" onclick="startScanner('tc')"
-                        style="white-space:nowrap;padding:0 0.8rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#scan"></use></svg> Escanear</button>
-                </div>
+                <label for="tc-uuid">UUID do cartão</label>
+                <input class="input" id="tc-uuid" placeholder="Gerado automaticamente" readonly>
             </div>
-            <div id="tc-qr-reader" style="margin-bottom:1rem;"></div>
 
             <div class="field">
                 <label for="tc-nome">Nome do Cliente *</label>
-                <input class="input" id="tc-nome" placeholder="Nome do cliente" required>
+                <input class="input" id="tc-nome" placeholder="Nome do cliente" maxlength="200" required>
             </div>
             <div class="field">
                 <label for="tc-cpf">CPF (Opcional)</label>
-                <input class="input" id="tc-cpf" placeholder="000.000.000-00">
+                <input class="input" id="tc-cpf" placeholder="000.000.000-00" maxlength="14" inputmode="numeric">
             </div>
             <div class="field">
                 <label for="tc-telefone">Telefone (Opcional)</label>
-                <input class="input" id="tc-telefone" placeholder="(00) 00000-0000">
+                <input class="input" id="tc-telefone" placeholder="(00) 00000-0000" maxlength="15" type="tel">
             </div>
             <div class="field">
                 <label for="tc-valor">Valor Inicial (R$) *</label>
                 <input class="input" id="tc-valor" type="number" step="0.01" min="0.01" placeholder="0.00" required>
             </div>
+            <label class="temp-card-option" for="tc-fisico">
+                <input id="tc-fisico" type="checkbox">
+                <span>R$ 2,00 - Incluir cartão físico</span>
+            </label>
+            <p class="temp-card-help">O valor do cartão físico é cobrado à parte e não altera o saldo disponível para consumo.</p>
             <div class="field">
                 <label for="tc-metodo">Forma de Pagamento *</label>
                 <select id="tc-metodo" class="input"
@@ -190,16 +192,25 @@
                     <option value="dinheiro">Dinheiro</option>
                 </select>
             </div>
-            <button onclick="createTempCard()" class="btn-primary" style="margin-top:0.5rem;">Criar Cartão / Recarregar
-                Físico</button>
-        </div>
+            </fieldset>
+            <div class="temp-card-totals" aria-live="polite">
+                <div><span>Saldo inicial</span><strong id="tc-total-saldo">R$ 0,00</strong></div>
+                <div><span>Cartão físico</span><strong id="tc-total-fisico">R$ 0,00</strong></div>
+                <div class="temp-card-total"><span>Total a cobrar</span><strong id="tc-total-cobrar">R$ 0,00</strong></div>
+            </div>
+            <p class="temp-card-help">Confirme o recebimento do total antes de criar o cartão.</p>
+            <button type="submit" id="tc-submit" class="btn-primary">Criar e imprimir cartão</button>
+            <button type="button" id="tc-clear" class="btn-secondary" style="width:100%;margin-top:0.6rem;">Limpar formulário</button>
+            <p id="tc-status" class="temp-card-help" role="status" aria-live="polite"></p>
+        </form>
         <div id="temp-card-result" style="display:none;margin-top:1.5rem;">
-            <div class="alert alert-success" style="margin-bottom:1rem;">Cartão gerado/vinculado e recarregado com
-                sucesso!</div>
+            <div class="alert alert-success" id="tc-result-summary" style="margin-bottom:1rem;"></div>
             <div class="qr-container">
                 <img id="tc-qr-img" src="" alt="QR Code">
                 <div class="qr-label" id="tc-qr-label"></div>
             </div>
+            <a id="tc-print-link" class="btn-secondary" target="_blank" rel="noopener">Imprimir / reimprimir etiqueta</a>
+            <p class="temp-card-help">Se a impressão for cancelada ou falhar, use este botão. A reimpressão não cria outro cartão nem gera outra cobrança.</p>
         </div>
     </div>
 </div>
@@ -224,6 +235,7 @@
                 <div class="balance-label" id="saldo-client-name">—</div>
                 <div class="balance-value" id="saldo-value">R$ 0,00</div>
             </div>
+            <a id="saldo-label-link" class="btn-secondary" target="_blank" rel="noopener" style="display:none;">Imprimir etiqueta</a>
             <div class="dash-form" style="margin-top:1rem;">
                 <div class="field">
                     <label for="saldo-valor">Valor (R$)</label>
@@ -335,5 +347,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_caixa.js' %}?v=6"></script>
+<script src="{% static 'js/dashboard_caixa.js' %}?v=8"></script>
+<script src="{% static 'js/temp_cards.js' %}?v=2"></script>
 {% endblock %}

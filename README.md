@@ -22,13 +22,13 @@ O sistema foi desenvolvido com foco em **uso mobile** (celular), mas funciona pe
 
 - 🔐 **4 tipos de usuário** com dashboards independentes (Admin, Caixa, Balcão, Cliente)
 - 💳 **Cartão virtual com QR Code** para clientes
-- 📱 **QR Code temporário** criado pelo caixa para clientes sem cadastro
+- 📱 **Etiqueta com QR Code** criada e impressa pelo caixa para clientes sem cadastro
 - 💰 **Recarga de saldo** presencial (dinheiro, PIX, cartão) ou via app (PIX Asaas)
 - 🛒 **Carrinho de pedidos** com débito automático do saldo
 - 📊 **Relatórios de vendas** com filtros por período e método de pagamento
 - 🔍 **Busca por CPF** para localizar cartões
 - 🔄 **Transferência de saldo** entre cartões
-- 🚫 **Bloqueio/cancelamento** de cartões com liberação do QR para reutilização
+- 🚫 **Bloqueio/cancelamento** de cartões temporários
 - 📲 **PWA** (Progressive Web App) — instalável no celular como um app
 - 🔑 **Recuperação de senha** via código enviado por e-mail
 
@@ -46,6 +46,7 @@ O sistema foi desenvolvido com foco em **uso mobile** (celular), mas funciona pe
 
 ### 🟡 Caixa
 - Cria **cartões temporários** com QR Code para clientes sem cadastro
+- Imprime e reimprime **etiquetas**, com venda opcional de cartão físico em branco por R$ 2,00
 - **Adiciona e remove saldo** dos cartões
 - **Busca cartões por CPF**
 - **Bloqueia/cancela** cartões
@@ -493,6 +494,45 @@ Referências: [pagamento por cartão](https://docs.asaas.com/docs/payments-via-c
 
 ---
 
+## Cartão temporário com etiqueta
+
+No caixa, preencha nome, CPF e telefone (os dois últimos são opcionais), valor
+inicial e forma de pagamento. O UUID é gerado automaticamente; não é preciso
+escanear nem informar um QR existente. Marque **R$ 2,00 - Incluir cartão físico**
+se o cliente comprar o cartão em branco para colar a etiqueta.
+
+Os R$ 2,00 são cobrados à parte: R$ 50,00 de saldo e um cartão físico totalizam
+R$ 52,00 recebidos, com R$ 50,00 disponíveis para consumo. A venda fica registrada
+como **Venda de cartão físico**, separada do depósito, com método e operador.
+Os relatórios do caixa e do administrador exibem a venda separadamente; o total
+recebido por método no caixa inclui depósitos e cartões físicos. Cada componente
+é um lançamento, mesmo quando ambos são recebidos em um único pagamento.
+
+Após confirmar o recebimento, clique em **Criar e imprimir cartão**. A tela da
+etiqueta permite ajustar largura (40 a 100 mm) e altura (30 a 100 mm), inicialmente
+60 × 40 mm. Essas medidas ficam salvas neste navegador. Clique em **Imprimir
+etiqueta** e escolha a impressora instalada no computador, ou **Salvar como PDF**.
+No driver, use o tamanho de papel correspondente, escala 100%, margens zero e
+desative cabeçalhos e rodapés. A impressão física deve ser calibrada quando o
+modelo da impressora e o papel forem escolhidos.
+
+A etiqueta contém a marca, o QR Code, o número e o UUID do cartão; não imprime
+CPF, telefone nem saldo. A API só permite emissão e impressão para caixa/admin.
+Se o navegador bloquear a nova janela ou a impressão falhar, use **Imprimir /
+reimprimir etiqueta** no resultado. Também há reimpressão em **Cartões**, após
+buscar por CPF, e em **Saldo**, após consultar o QR. Reimprimir não movimenta saldo
+nem registra outra venda. Cartões cancelados não podem ser reimpressos.
+
+Se a conexão cair durante a criação, use **Retomar criação e imprimir cartão**.
+O mesmo identificador recupera a emissão já registrada, sem duplicar a recarga
+ou a venda. Os dados pendentes ficam na sessão da aba até a confirmação; não
+inicie outra emissão para resolver uma falha de impressão.
+
+As migrações `0008` e `0009` preservam a continuidade de bancos que receberam a
+implementação anterior: removem a estrutura de lotes impressos antecipadamente,
+mantêm cartões, UUIDs, saldos e transações, e adicionam o registro de emissão.
+Execute `python manage.py migrate` ao atualizar outro ambiente.
+
 ## 🔐 Recargas e consistência do saldo
 
 - Recargas presenciais exigem perfil `caixa` ou `admin`. Clientes geram cobranças PIX ou crédito; o crédito ocorre após confirmação autenticada.
@@ -568,7 +608,8 @@ A configuração de testes ignora `.env`, usa SQLite em memória, senhas de test
 | GET | `/api/cards/balance/?qr_data=UUID` | Consulta saldo por QR Code |
 | POST | `/api/cards/balance/add/` | Adiciona saldo (caixa) |
 | POST | `/api/cards/balance/remove/` | Remove saldo (caixa) |
-| POST | `/api/cards/temp/create/` | Cria cartão temporário (caixa) |
+| POST | `/api/cards/temp/create/` | Cria cartão e saldo inicial; aceita `request_id` único e `incluir_cartao_fisico` booleano (caixa/admin) |
+| GET | `/cards/<id>/label/` | Tela de impressão/reimpressão da etiqueta, sem nova cobrança (caixa/admin) |
 | POST | `/api/cards/client/add/` | Rota antiga desativada: retorna HTTP 410 sem alterar saldo |
 | GET | `/api/cards/client/<id>/transactions/` | Transações de um cliente (admin) |
 | GET | `/api/cards/my/transactions/` | Minhas transações (cliente) |

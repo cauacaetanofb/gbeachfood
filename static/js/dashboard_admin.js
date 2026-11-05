@@ -370,11 +370,22 @@ async function loadReport(period, btn) {
                     <div style="color:var(--text-secondary);font-size:1.2rem;font-weight:800;">R$ ${parseFloat(data.total_retiradas).toFixed(2)}</div>
                     <div style="color:var(--text-secondary);font-size:0.72rem;">Retiradas (${data.total_retiradas_count})</div>
                 </div>
+                <div class="surface-card" style="flex:1;text-align:center;margin:0;min-width:45%;">
+                    <div style="color:var(--primary);font-size:1.2rem;font-weight:800;">R$ ${parseFloat(data.vendas_cartoes.total).toFixed(2)}</div>
+                    <div style="color:var(--text-secondary);font-size:0.72rem;">Cartões físicos (${data.vendas_cartoes.count})</div>
+                </div>
             </div>
         `;
 
         // Payment methods separated by origin
         let metodosHtml = '';
+        if (data.vendas_cartoes.count > 0) {
+            metodosHtml += `<h3>Venda de cartões físicos — cobrada à parte</h3>
+                <table class="report-table" style="margin-bottom:1rem;">
+                    <thead><tr><th>Método</th><th>Cartões</th><th>Total</th></tr></thead>
+                    <tbody>${data.vendas_cartoes.por_metodo.map(m => `<tr><td>${m.metodo}</td><td>${m.count}</td><td>R$ ${parseFloat(m.total).toFixed(2)}</td></tr>`).join('')}</tbody>
+                </table>`;
+        }
         if (data.depositos_app && data.depositos_app.count > 0) {
             metodosHtml += `
                 <h3 style="color:var(--text-primary);font-size:0.9rem;margin:1rem 0 0.5rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#phone"></use></svg> Depósitos via App (Total: R$ ${parseFloat(data.depositos_app.total).toFixed(2)})</h3>
@@ -505,7 +516,7 @@ async function loadAllTransactions() {
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div style="flex:1;min-width:0;">
                             <div style="color:var(--text-primary);font-weight:700;font-size:0.9rem;">
-                                <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cart"></use></svg> Transação #${t.id}
+                                <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cart"></use></svg> ${t.tipo_label} #${t.id}
                             </div>
                             <div style="color:var(--text-secondary);font-size:0.78rem;margin-top:0.2rem;">
                                 <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#profile"></use></svg> Vendedor: <span style="color:var(--text-primary);font-weight:600;">${t.vendedor}</span>

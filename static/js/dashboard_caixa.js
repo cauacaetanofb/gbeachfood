@@ -258,36 +258,6 @@ async function processPayment() {
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-// ===== Temp Card =====
-async function createTempCard() {
-    try {
-        const payload = {
-            nome: document.getElementById('tc-nome').value,
-            cpf: document.getElementById('tc-cpf').value,
-            telefone: document.getElementById('tc-telefone').value,
-            qr_data: document.getElementById('tc-qr-input').value,
-            valor: document.getElementById('tc-valor').value,
-            metodo: document.getElementById('tc-metodo').value
-        };
-        const data = await apiFetch('/api/cards/temp/create/', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        document.getElementById('temp-card-result').style.display = 'block';
-        document.getElementById('tc-qr-img').src = 'data:image/png;base64,' + data.card.qr_code_image;
-        document.getElementById('tc-qr-label').textContent = `Cartão de ${data.card.nome} — ${data.card.qr_code_data}`;
-        
-        // Limpar form
-        document.getElementById('tc-nome').value = '';
-        document.getElementById('tc-cpf').value = '';
-        document.getElementById('tc-telefone').value = '';
-        document.getElementById('tc-qr-input').value = '';
-        document.getElementById('tc-valor').value = '';
-        
-        showToast('Cartão gerado/vinculado e recarregado!');
-    } catch (e) { showToast(e.message, 'error'); }
-}
-
 // ===== Balance (Caixa mode) =====
 async function consultarSaldo(qrData) {
     if (!qrData) qrData = document.getElementById('saldo-qr-input').value;
@@ -297,6 +267,9 @@ async function consultarSaldo(qrData) {
         document.getElementById('saldo-card-info').style.display = 'block';
         document.getElementById('saldo-client-name').textContent = data.card.nome;
         document.getElementById('saldo-value').textContent = `R$ ${parseFloat(data.card.saldo).toFixed(2)}`;
+        const labelLink = document.getElementById('saldo-label-link');
+        labelLink.style.display = data.card.is_temporary && !data.card.bloqueado ? 'inline-flex' : 'none';
+        labelLink.href = `/cards/${data.card.id}/label/`;
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -349,6 +322,10 @@ async function loadDailyReport() {
                     <div style="color:var(--warning);font-size:1.3rem;font-weight:800;">R$ ${parseFloat(data.total_depositos).toFixed(2)}</div>
                     <div style="color:var(--text-secondary);font-size:0.72rem;">Depósitos (${data.total_depositos_count})</div>
                 </div>
+                <div class="surface-card" style="flex:1;text-align:center;margin:0;min-width:45%;background:var(--bg-dark);">
+                    <div style="color:var(--primary);font-size:1.3rem;font-weight:800;">R$ ${parseFloat(data.vendas_cartoes.total).toFixed(2)}</div>
+                    <div style="color:var(--text-secondary);font-size:0.72rem;">Cartões físicos (${data.vendas_cartoes.count})</div>
+                </div>
             </div>
         `;
 
@@ -356,14 +333,14 @@ async function loadDailyReport() {
             document.getElementById('report-metodos').innerHTML = `
                 <h3 style="color:var(--text-primary);font-size:0.9rem;margin-bottom:0.5rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#card"></use></svg> Recebido por Forma de Pagamento</h3>
                 <table class="report-table">
-                    <thead><tr><th>Método</th><th>Qtd</th><th>Total</th></tr></thead>
+                    <thead><tr><th>Método</th><th>Lançamentos</th><th>Total</th></tr></thead>
                     <tbody>${data.por_metodo.map(m => `
                         <tr><td>${m.metodo}</td><td>${m.count}</td><td style="color:var(--success);font-weight:600;">R$ ${parseFloat(m.total).toFixed(2)}</td></tr>
                     `).join('')}</tbody>
                 </table>
             `;
         } else {
-            document.getElementById('report-metodos').innerHTML = '<div class="empty-state"><p>Nenhum depósito hoje</p></div>';
+            document.getElementById('report-metodos').innerHTML = '<div class="empty-state"><p>Nenhum recebimento hoje</p></div>';
         }
 
         if (data.top_products && data.top_products.length) {
@@ -427,6 +404,9 @@ async function buscarCartoesCPF() {
                 }
                 html += '<button class="btn-danger" onclick="bloquearCartao(' + card.id + ', \'' + card.nome.replace(/'/g, "\\'") + '\')" style="flex:1;font-size:0.78rem;padding:0.4rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#cancel"></use></svg> Cancelar</button>';
                 html += '</div>';
+                if (card.is_temporary) {
+                    html += '<a class="btn-secondary" target="_blank" rel="noopener" href="/cards/' + card.id + '/label/" style="margin-top:0.5rem;">Imprimir etiqueta</a>';
+                }
             }
             html += '</div>';
         });

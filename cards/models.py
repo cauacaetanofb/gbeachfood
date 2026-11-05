@@ -37,6 +37,7 @@ class Transaction(models.Model):
         ('deposito', 'Depósito'),
         ('pagamento', 'Pagamento'),
         ('retirada', 'Retirada'),
+        ('cartao', 'Venda de cartão físico'),
     )
     METODO_CHOICES = (
         ('dinheiro', 'Dinheiro'),
@@ -80,6 +81,18 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f'{self.get_tipo_display()} - R$ {self.valor} ({self.get_metodo_display()})'
+
+
+class CardIssuance(models.Model):
+    """Uma emissão presencial: repetir a solicitação não repete a cobrança."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    card = models.OneToOneField(Card, null=True, on_delete=models.PROTECT, related_name='issuance')
+    operador = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    request_hash = models.CharField(max_length=64)
+    valor_inicial = models.DecimalField(max_digits=10, decimal_places=2)
+    valor_cartao = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    metodo = models.CharField(max_length=10, choices=Transaction.METODO_CHOICES)
+    criado_em = models.DateTimeField(auto_now_add=True)
 
 
 class Recarga(models.Model):

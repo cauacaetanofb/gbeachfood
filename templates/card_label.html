@@ -1,0 +1,37 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Etiqueta {{ card_number }} — GBeachFood</title>
+    <link rel="icon" href="{% static 'images/logo-guriri.png' %}">
+    <link rel="stylesheet" href="{% static 'css/card_label.css' %}?v=1">
+    <style id="label-page-size">@page { size: 60mm 40mm; margin: 0; }</style>
+</head>
+<body>
+    <main class="print-controls">
+        <img class="brand-logo" src="{% static 'images/logo-guriri.png' %}" alt="Guriri Beach Acqua Park">
+        <h1>Imprimir etiqueta</h1>
+        <p>Cartão {{ card_number }} pronto. Imprimir novamente mantém o mesmo QR Code e não gera outra cobrança.</p>
+        <form id="label-settings">
+            <div class="dimensions">
+                <label>Largura (mm)<input id="label-width" type="number" min="40" max="100" step="1" value="60" required></label>
+                <label>Altura (mm)<input id="label-height" type="number" min="30" max="100" step="1" value="40" required></label>
+            </div>
+            <button type="submit" id="print-label" disabled>Imprimir etiqueta</button>
+        </form>
+        <p class="help">Na janela de impressão, escolha a impressora de etiquetas e o papel com estas medidas. Use escala de 100%, margens zero e desative cabeçalhos e rodapés. Você também pode selecionar “Salvar como PDF”.</p>
+        <p class="help" id="label-status" role="status" aria-live="polite">Preparando o QR Code...</p>
+    </main>
+    <div class="label-preview">
+        <article class="label" aria-label="Etiqueta do cartão {{ card_number }}">
+            <strong class="label-brand">GURIRI BEACH · GBeachFood</strong>
+            <img id="label-qr" src="data:image/png;base64,{{ qr_image }}" alt="QR Code do cartão {{ card_number }}">
+            <strong class="label-number">CARTÃO {{ card_number }}</strong>
+            <span class="label-uuid">{{ card.qr_code_data }}</span>
+        </article>
+    </div>
+    <script src="{% static 'js/card_label.js' %}?v=1"></script>
+</body>
+</html>

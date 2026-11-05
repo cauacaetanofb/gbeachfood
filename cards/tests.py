@@ -1,5 +1,6 @@
 from decimal import Decimal
 from unittest.mock import patch
+from uuid import uuid4
 from django.test import TestCase, override_settings
 from accounts.models import User
 from .models import Card, Transaction, Recarga
@@ -231,12 +232,11 @@ class BalanceIntegrityTests(TestCase):
         self.assertEqual(self.transfer().status_code, 400)
         self.assertFalse(Transaction.objects.exists())
 
-    def test_temp_card_creation_and_reuse_roll_back_on_failure(self):
+    def test_temp_card_creation_rolls_back_on_failure(self):
         count = Card.objects.count()
-        for qr in ('', str(self.card.qr_code_data)):
-            with patch('cards.views.Transaction.objects.create', side_effect=RuntimeError('simulated')):
-                with self.assertRaises(RuntimeError):
-                    self.post('/api/cards/temp/create/', {'nome': 'Novo', 'valor': '10.01', 'qr_data': qr})
+        with patch('cards.views.Transaction.objects.create', side_effect=RuntimeError('simulated')):
+            with self.assertRaises(RuntimeError):
+                self.post('/api/cards/temp/create/', {'nome': 'Novo', 'valor': '10.01', 'request_id': str(uuid4())})
         self.assertEqual(Card.objects.count(), count)
         self.card.refresh_from_db()
         self.assertEqual(self.card.saldo, Decimal('20.25'))
@@ -251,18 +251,18 @@ class BalanceIntegrityTests(TestCase):
         self.assertFalse(self.card.bloqueado)
         self.assertFalse(Transaction.objects.exists())
 
-    def test_cancel_and_reuse_physical_card(self):
+    def test_cancelled_qr_cannot_be_reassigned_by_the_creation_form(self):
         self.assertEqual(self.post('/api/cards/block/', {'card_id': self.card.pk}).status_code, 200)
         self.card.refresh_from_db()
         self.assertTrue(self.card.bloqueado)
         self.assertEqual(self.card.saldo, 0)
         self.assertEqual(self.post('/api/cards/temp/create/', {
             'nome': 'Novo', 'valor': '1.01', 'qr_data': str(self.card.qr_code_data),
-        }).status_code, 200)
+        }).status_code, 400)
         self.card.refresh_from_db()
-        self.assertFalse(self.card.bloqueado)
-        self.assertEqual(self.card.saldo, Decimal('1.01'))
-        self.assertEqual(Transaction.objects.count(), 2)
+        self.assertTrue(self.card.bloqueado)
+        self.assertEqual(self.card.saldo, 0)
+        self.assertEqual(Transaction.objects.count(), 1)
 
     def test_malformed_json_uuid_and_method_do_not_write(self):
         for payload in ('{', '[]'):
