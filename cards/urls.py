@@ -6,6 +6,7 @@ urlpatterns = [
     path('api/cards/balance/', views.api_check_balance, name='api_check_balance'),
     path('api/cards/balance/add/', views.api_add_balance, name='api_add_balance'),
     path('api/cards/balance/remove/', views.api_remove_balance, name='api_remove_balance'),
+    path('api/cards/physical/purchase/', views.api_buy_physical_card, name='api_buy_physical_card'),
     path('api/cards/temp/create/', views.api_create_temp_card, name='api_create_temp_card'),
     path('cards/<int:card_id>/label/', views.card_label, name='card_label'),
     path('api/cards/client/add/', views.api_client_add_balance, name='api_client_add_balance'),

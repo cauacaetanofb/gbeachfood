@@ -259,18 +259,93 @@ async function processPayment() {
 }
 
 // ===== Balance (Caixa mode) =====
+let saldoCard = null;
+let saldoLookupVersion = 0;
+let physicalPurchaseBusy = false;
+
+function invalidarConsultaSaldo() {
+    saldoCard = null;
+    saldoLookupVersion++;
+    document.getElementById('saldo-card-info').style.display = 'none';
+    document.getElementById('saldo-physical-form').reset();
+    document.getElementById('saldo-physical-status').textContent = '';
+}
+
+document.getElementById('saldo-qr-input').addEventListener('input', invalidarConsultaSaldo);
+
+function renderPhysicalCardPurchase(message = '') {
+    const panel = document.getElementById('saldo-physical-card');
+    const available = saldoCard && saldoCard.is_temporary && !saldoCard.bloqueado;
+    panel.style.display = available ? 'block' : 'none';
+    if (!available) return;
+    const bought = saldoCard.physical_card_purchased;
+    const price = Number(saldoCard.physical_card_price).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+    document.getElementById('saldo-physical-form').style.display = bought ? 'none' : 'block';
+    const buyButton = document.getElementById('saldo-physical-buy');
+    buyButton.disabled = physicalPurchaseBusy || bought;
+    buyButton.textContent = physicalPurchaseBusy ? 'Registrando compra...' : `Comprar cartão físico — ${price}`;
+    document.getElementById('saldo-physical-method').disabled = physicalPurchaseBusy;
+    document.getElementById('saldo-physical-status').textContent = message || (bought
+        ? 'A compra do cartão físico já está registrada para esta etiqueta.' : '');
+}
+
 async function consultarSaldo(qrData) {
-    if (!qrData) qrData = document.getElementById('saldo-qr-input').value;
+    const input = document.getElementById('saldo-qr-input');
+    qrData = (qrData || input.value).trim();
+    invalidarConsultaSaldo();
+    const version = saldoLookupVersion;
     if (!qrData) { showToast('Digite ou escaneie o código do cartão', 'error'); return; }
+    input.value = qrData;
     try {
-        const data = await apiFetch(`/api/cards/balance/?qr_data=${qrData}`);
+        const data = await apiFetch(`/api/cards/balance/?qr_data=${encodeURIComponent(qrData)}`);
+        if (version !== saldoLookupVersion || input.value.trim() !== qrData) return;
+        saldoCard = data.card;
+        input.value = data.card.qr_code_data;
         document.getElementById('saldo-card-info').style.display = 'block';
         document.getElementById('saldo-client-name').textContent = data.card.nome;
         document.getElementById('saldo-value').textContent = `R$ ${parseFloat(data.card.saldo).toFixed(2)}`;
         const labelLink = document.getElementById('saldo-label-link');
         labelLink.style.display = data.card.is_temporary && !data.card.bloqueado ? 'inline-flex' : 'none';
         labelLink.href = `/cards/${data.card.id}/label/`;
-    } catch (e) { showToast(e.message, 'error'); }
+        renderPhysicalCardPurchase();
+    } catch (e) {
+        if (version === saldoLookupVersion) showToast(e.message, 'error');
+    }
+}
+
+async function comprarCartaoFisico(event) {
+    event.preventDefault();
+    if (physicalPurchaseBusy) return;
+    const card = saldoCard;
+    if (!card || document.getElementById('saldo-qr-input').value.trim() !== card.qr_code_data) {
+        invalidarConsultaSaldo();
+        showToast('Consulte o cartão antes de registrar a compra.', 'error');
+        return;
+    }
+    if (!card.is_temporary || card.bloqueado || card.physical_card_purchased) return;
+    const version = saldoLookupVersion;
+    const method = document.getElementById('saldo-physical-method').value;
+    physicalPurchaseBusy = true;
+    renderPhysicalCardPurchase('Registrando a compra para esta etiqueta...');
+    let message = '';
+    try {
+        const data = await apiFetch('/api/cards/physical/purchase/', {
+            method: 'POST', body: JSON.stringify({qr_data: card.qr_code_data, metodo: method})
+        });
+        message = data.created
+            ? `Compra registrada via ${data.metodo_label}. Entregue o cartão físico para colar a etiqueta existente.`
+            : 'Já existe uma compra de cartão físico registrada para esta etiqueta. Confira o atendimento; nenhuma nova venda foi registrada.';
+        if (version === saldoLookupVersion && saldoCard?.id === card.id) {
+            saldoCard.physical_card_purchased = true;
+        }
+        showToast(data.created ? `Compra do cartão físico registrada para ${card.nome}.` : 'Esta etiqueta já tem uma compra de cartão físico registrada.');
+    } catch (e) {
+        message = `${e.message} Consulte o cartão novamente antes de receber outro pagamento.`;
+        showToast(message, 'error');
+    } finally {
+        physicalPurchaseBusy = false;
+        renderPhysicalCardPurchase(version === saldoLookupVersion ? message : '');
+    }
 }
 
 async function alterarSaldo(action) {

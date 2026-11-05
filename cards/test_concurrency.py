@@ -5,7 +5,7 @@ from threading import Barrier
 from django.db import close_old_connections
 from django.test import Client, TransactionTestCase, override_settings, skipUnlessDBFeature
 from accounts.models import User
-from .models import Recarga, Transaction
+from .models import Card, Recarga, Transaction
 
 
 @skipUnlessDBFeature('has_select_for_update')
@@ -54,3 +54,13 @@ class ConcurrentBalanceTests(TransactionTestCase):
         self.card.refresh_from_db()
         self.assertEqual(self.card.saldo, Decimal('21.23'))
         self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_simultaneous_physical_card_purchases_record_only_one_sale(self):
+        card = Card.objects.create(is_temporary=True, nome='Etiqueta existente', saldo=Decimal('35.50'))
+        statuses = self.parallel('/api/cards/physical/purchase/', {
+            'qr_data': str(card.qr_code_data), 'metodo': 'dinheiro',
+        }, authenticated=True)
+        self.assertEqual(statuses, [200, 200])
+        self.assertEqual(Transaction.objects.filter(card=card, tipo='cartao').count(), 1)
+        card.refresh_from_db()
+        self.assertEqual(card.saldo, Decimal('35.50'))

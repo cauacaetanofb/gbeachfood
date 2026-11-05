@@ -23,6 +23,7 @@ from django.views.decorators.http import require_POST, require_GET
 from .models import Card, Transaction, Recarga, CardIssuance
 
 logger = logging.getLogger(__name__)
+PHYSICAL_CARD_PRICE = D('2.00')
 
 
 def _payment_method(data):
@@ -69,13 +70,17 @@ def api_my_card(request):
 
 
 @login_required
+@require_GET
 def api_check_balance(request):
     """Consulta saldo por QR code data (UUID)."""
-    qr_data = request.GET.get('qr_data', '')
+    try:
+        qr_data = UUID(request.GET.get('qr_data', '').strip())
+    except (ValueError, AttributeError):
+        return JsonResponse({'error': 'Informe um código de cartão válido.'}, status=400)
     try:
         card = Card.objects.get(qr_code_data=qr_data)
         nome = card.nome if card.is_temporary else (card.user.get_full_name() if card.user else 'N/A')
-        return JsonResponse({
+        response = JsonResponse({
             'card': {
                 'id': card.id,
                 'nome': nome,
@@ -83,10 +88,59 @@ def api_check_balance(request):
                 'qr_code_data': str(card.qr_code_data),
                 'is_temporary': card.is_temporary,
                 'bloqueado': card.bloqueado,
+                'physical_card_purchased': card.transactions.filter(tipo='cartao').exists(),
+                'physical_card_price': str(PHYSICAL_CARD_PRICE),
             }
         })
+        response['Cache-Control'] = 'private, no-store'
+        return response
     except Card.DoesNotExist:
         return JsonResponse({'error': 'Cartão não encontrado'}, status=404)
+
+
+@login_required
+@require_POST
+@json_api
+@transaction.atomic
+def api_buy_physical_card(request):
+    """Registra a primeira compra do suporte físico para uma etiqueta existente."""
+    if request.user.user_type not in ('admin', 'caixa'):
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+    data = request.json_data
+    if set(data) != {'qr_data', 'metodo'}:
+        raise InvalidInput('Informe apenas o código do cartão e a forma de pagamento.')
+    try:
+        qr_data = UUID(str(data['qr_data']).strip())
+    except (ValueError, TypeError, AttributeError):
+        raise InvalidInput('Informe um código de cartão válido.') from None
+    metodo = _payment_method(data)
+    card = Card.objects.select_for_update().filter(qr_code_data=qr_data).first()
+    if card is None:
+        return JsonResponse({'error': 'Cartão não encontrado'}, status=404)
+    if card.bloqueado:
+        raise InvalidInput('Este cartão está cancelado.')
+    if not card.is_temporary or card.user_id is not None:
+        raise InvalidInput('Esta compra é destinada a clientes com etiqueta de cartão temporário.')
+    # A linha do cartão permanece bloqueada até o commit. Dois caixas ou uma
+    # repetição após falha de rede não registram duas vendas para a mesma etiqueta.
+    sale = card.transactions.filter(tipo='cartao').order_by('pk').first()
+    created = sale is None
+    if created:
+        sale = Transaction.objects.create(
+            card=card, tipo='cartao', valor=PHYSICAL_CARD_PRICE, metodo=metodo,
+            origem='caixa', cpf_cliente=card.cpf, operador=request.user,
+            descricao='Venda de cartão físico em branco — etiqueta já existente',
+        )
+    response = JsonResponse({
+        'success': True, 'created': created, 'transaction_id': sale.pk,
+        'valor_cartao': str(sale.valor), 'metodo': sale.metodo,
+        'metodo_label': sale.get_metodo_display(),
+        'card': {'id': card.pk, 'qr_code_data': str(card.qr_code_data),
+                 'physical_card_purchased': True, 'saldo': str(card.saldo)},
+        'label_url': reverse('card_label', args=[card.pk]),
+    })
+    response['Cache-Control'] = 'private, no-store'
+    return response
 
 
 @login_required
@@ -174,7 +228,7 @@ def api_create_temp_card(request):
     if type(incluir) is not bool:
         raise InvalidInput('A opção de cartão físico deve ser marcada ou desmarcada.')
     # O preço é definido aqui, nunca aceito do navegador, e não compõe o saldo.
-    valor_cartao = D('2.00') if incluir else D('0.00')
+    valor_cartao = PHYSICAL_CARD_PRICE if incluir else D('0.00')
     fingerprint = hashlib.sha256(json.dumps(
         [nome, cpf, telefone, str(valor), metodo, incluir], ensure_ascii=False).encode()).hexdigest()
     issuance, created = CardIssuance.objects.get_or_create(pk=request_id, defaults={

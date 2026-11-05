@@ -523,6 +523,16 @@ reimprimir etiqueta** no resultado. Também há reimpressão em **Cartões**, ap
 buscar por CPF, e em **Saldo**, após consultar o QR. Reimprimir não movimenta saldo
 nem registra outra venda. Cartões cancelados não podem ser reimpressos.
 
+Se o cliente levou somente a etiqueta e quiser comprar o cartão físico depois,
+abra **Saldo**, consulte o QR da etiqueta e use **Comprar cartão físico — R$ 2,00**.
+Escolha a forma de pagamento nessa seção e registre após receber os R$ 2,00 à parte.
+A venda entra nos mesmos relatórios de cartões físicos; não adiciona nem desconta
+saldo e mantém o QR existente. Basta colar a etiqueta no cartão em branco.
+A compra já registrada, seja na criação inicial ou posteriormente, aparece na
+consulta e não pode ser registrada novamente para a mesma etiqueta, inclusive
+em reenvios após falha de conexão. Esse fluxo é para a primeira compra do cartão
+físico, não para venda de reposições. A reimpressão da etiqueta continua disponível.
+
 Se a conexão cair durante a criação, use **Retomar criação e imprimir cartão**.
 O mesmo identificador recupera a emissão já registrada, sem duplicar a recarga
 ou a venda. Os dados pendentes ficam na sessão da aba até a confirmação; não
@@ -608,6 +618,7 @@ A configuração de testes ignora `.env`, usa SQLite em memória, senhas de test
 | GET | `/api/cards/balance/?qr_data=UUID` | Consulta saldo por QR Code |
 | POST | `/api/cards/balance/add/` | Adiciona saldo (caixa) |
 | POST | `/api/cards/balance/remove/` | Remove saldo (caixa) |
+| POST | `/api/cards/physical/purchase/` | Registra a compra de R$ 2,00 do cartão físico para uma etiqueta existente; recebe `qr_data` e `metodo` (caixa/admin) |
 | POST | `/api/cards/temp/create/` | Cria cartão e saldo inicial; aceita `request_id` único e `incluir_cartao_fisico` booleano (caixa/admin) |
 | GET | `/cards/<id>/label/` | Tela de impressão/reimpressão da etiqueta, sem nova cobrança (caixa/admin) |
 | POST | `/api/cards/client/add/` | Rota antiga desativada: retorna HTTP 410 sem alterar saldo |
