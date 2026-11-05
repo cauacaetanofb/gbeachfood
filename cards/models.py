@@ -52,6 +52,7 @@ class Transaction(models.Model):
         ('caixa', 'Caixa (Presencial)'),
     )
 
+    physical_purchase_request_id = models.UUIDField(null=True, blank=True, unique=True, editable=False)
     card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='transactions', verbose_name='Cartão')
     tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, verbose_name='Tipo')
     valor = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Valor')

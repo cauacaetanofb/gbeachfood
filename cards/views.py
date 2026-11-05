@@ -80,6 +80,7 @@ def api_check_balance(request):
     try:
         card = Card.objects.get(qr_code_data=qr_data)
         nome = card.nome if card.is_temporary else (card.user.get_full_name() if card.user else 'N/A')
+        physical_purchases = card.transactions.filter(tipo='cartao').count()
         response = JsonResponse({
             'card': {
                 'id': card.id,
@@ -88,7 +89,8 @@ def api_check_balance(request):
                 'qr_code_data': str(card.qr_code_data),
                 'is_temporary': card.is_temporary,
                 'bloqueado': card.bloqueado,
-                'physical_card_purchased': card.transactions.filter(tipo='cartao').exists(),
+                'physical_card_purchased': physical_purchases > 0,
+                'physical_card_purchase_count': physical_purchases,
                 'physical_card_price': str(PHYSICAL_CARD_PRICE),
             }
         })
@@ -103,16 +105,17 @@ def api_check_balance(request):
 @json_api
 @transaction.atomic
 def api_buy_physical_card(request):
-    """Registra a primeira compra do suporte físico para uma etiqueta existente."""
+    """Cada solicitação nova compra uma unidade; reenvios não duplicam a venda."""
     if request.user.user_type not in ('admin', 'caixa'):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
     data = request.json_data
-    if set(data) != {'qr_data', 'metodo'}:
-        raise InvalidInput('Informe apenas o código do cartão e a forma de pagamento.')
+    if set(data) != {'qr_data', 'metodo', 'request_id'}:
+        raise InvalidInput('Atualize a página. Informe código do cartão, forma de pagamento e identificador da compra.')
     try:
         qr_data = UUID(str(data['qr_data']).strip())
+        request_id = UUID(str(data['request_id']))
     except (ValueError, TypeError, AttributeError):
-        raise InvalidInput('Informe um código de cartão válido.') from None
+        raise InvalidInput('Código do cartão ou identificador da compra inválido.') from None
     metodo = _payment_method(data)
     card = Card.objects.select_for_update().filter(qr_code_data=qr_data).first()
     if card is None:
@@ -121,22 +124,26 @@ def api_buy_physical_card(request):
         raise InvalidInput('Este cartão está cancelado.')
     if not card.is_temporary or card.user_id is not None:
         raise InvalidInput('Esta compra é destinada a clientes com etiqueta de cartão temporário.')
-    # A linha do cartão permanece bloqueada até o commit. Dois caixas ou uma
-    # repetição após falha de rede não registram duas vendas para a mesma etiqueta.
-    sale = card.transactions.filter(tipo='cartao').order_by('pk').first()
-    created = sale is None
-    if created:
-        sale = Transaction.objects.create(
-            card=card, tipo='cartao', valor=PHYSICAL_CARD_PRICE, metodo=metodo,
-            origem='caixa', cpf_cliente=card.cpf, operador=request.user,
-            descricao='Venda de cartão físico em branco — etiqueta já existente',
-        )
+    # A chave única protege a mesma compra inclusive entre requisições concorrentes.
+    # Outra chave representa outra unidade, mesmo usando a mesma etiqueta.
+    sale, created = Transaction.objects.get_or_create(
+        physical_purchase_request_id=request_id,
+        defaults={'card': card, 'tipo': 'cartao', 'valor': PHYSICAL_CARD_PRICE,
+                  'metodo': metodo, 'origem': 'caixa', 'cpf_cliente': card.cpf,
+                  'operador': request.user,
+                  'descricao': 'Venda de cartão físico em branco — etiqueta já existente'},
+    )
+    if not created and (sale.card_id != card.pk or sale.metodo != metodo
+                        or sale.operador_id != request.user.pk or sale.tipo != 'cartao'):
+        return JsonResponse({'error': 'Esta solicitação já foi usada para outra compra. Confira o atendimento antes de iniciar uma nova.'}, status=409)
+    physical_purchases = card.transactions.filter(tipo='cartao').count()
     response = JsonResponse({
         'success': True, 'created': created, 'transaction_id': sale.pk,
         'valor_cartao': str(sale.valor), 'metodo': sale.metodo,
         'metodo_label': sale.get_metodo_display(),
         'card': {'id': card.pk, 'qr_code_data': str(card.qr_code_data),
-                 'physical_card_purchased': True, 'saldo': str(card.saldo)},
+                 'physical_card_purchased': True, 'physical_card_purchase_count': physical_purchases,
+                 'saldo': str(card.saldo)},
         'label_url': reverse('card_label', args=[card.pk]),
     })
     response['Cache-Control'] = 'private, no-store'

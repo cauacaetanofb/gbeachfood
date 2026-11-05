@@ -528,10 +528,16 @@ abra **Saldo**, consulte o QR da etiqueta e use **Comprar cartão físico — R$
 Escolha a forma de pagamento nessa seção e registre após receber os R$ 2,00 à parte.
 A venda entra nos mesmos relatórios de cartões físicos; não adiciona nem desconta
 saldo e mantém o QR existente. Basta colar a etiqueta no cartão em branco.
-A compra já registrada, seja na criação inicial ou posteriormente, aparece na
-consulta e não pode ser registrada novamente para a mesma etiqueta, inclusive
-em reenvios após falha de conexão. Esse fluxo é para a primeira compra do cartão
-físico, não para venda de reposições. A reimpressão da etiqueta continua disponível.
+A consulta mostra quantas compras de cartão físico já foram registradas. É possível
+comprar várias unidades para a mesma etiqueta, inclusive para substituir um cartão
+perdido. Cada nova compra registra R$ 2,00 nos relatórios, mantendo o saldo e o QR.
+A reimpressão da etiqueta continua gratuita e não registra a venda do cartão.
+
+Cada compra tem um `request_id` único. Repetir a mesma solicitação, com a mesma
+etiqueta, método e operador, retorna a venda já registrada; uma nova solicitação
+registra outra unidade. Se a conexão falhar, use **Retomar compra** antes de cobrar
+outra unidade. A tentativa pendente fica salva na sessão da aba, por operador e
+etiqueta, e pode ser retomada após recarregar a página e consultar o mesmo QR.
 
 Se a conexão cair durante a criação, use **Retomar criação e imprimir cartão**.
 O mesmo identificador recupera a emissão já registrada, sem duplicar a recarga
@@ -618,7 +624,7 @@ A configuração de testes ignora `.env`, usa SQLite em memória, senhas de test
 | GET | `/api/cards/balance/?qr_data=UUID` | Consulta saldo por QR Code |
 | POST | `/api/cards/balance/add/` | Adiciona saldo (caixa) |
 | POST | `/api/cards/balance/remove/` | Remove saldo (caixa) |
-| POST | `/api/cards/physical/purchase/` | Registra a compra de R$ 2,00 do cartão físico para uma etiqueta existente; recebe `qr_data` e `metodo` (caixa/admin) |
+| POST | `/api/cards/physical/purchase/` | Registra uma unidade de R$ 2,00 por nova solicitação; recebe `qr_data`, `metodo` e `request_id` único (caixa/admin) |
 | POST | `/api/cards/temp/create/` | Cria cartão e saldo inicial; aceita `request_id` único e `incluir_cartao_fisico` booleano (caixa/admin) |
 | GET | `/cards/<id>/label/` | Tela de impressão/reimpressão da etiqueta, sem nova cobrança (caixa/admin) |
 | POST | `/api/cards/client/add/` | Rota antiga desativada: retorna HTTP 410 sem alterar saldo |

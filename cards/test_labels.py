@@ -174,7 +174,7 @@ class LabelIssuanceTests(TestCase):
 class LabelMigrationTests(TransactionTestCase):
     def test_upgrade_preserves_preexisting_cards_and_transactions_after_code_revert(self):
         previous = [('cards', '0008_card_vinculo_version_cardprintbatch_card_print_batch_and_more')]
-        current = [('cards', '0009_temp_card_labels')]
+        current = [('cards', '0010_physical_purchase_request')]
         executor = MigrationExecutor(connection)
         executor.migrate(previous)
         try:

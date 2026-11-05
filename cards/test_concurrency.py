@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from threading import Barrier
+from uuid import uuid4
 from django.db import close_old_connections
 from django.test import Client, TransactionTestCase, override_settings, skipUnlessDBFeature
 from accounts.models import User
@@ -27,7 +28,7 @@ class ConcurrentBalanceTests(TransactionTestCase):
                 if authenticated:
                     client.force_login(User.objects.get(pk=self.cashier.pk))
                 barrier.wait(timeout=10)
-                return client.post(path, payload, content_type='application/json',
+                return client.post(path, payload() if callable(payload) else payload, content_type='application/json',
                     HTTP_ASAAS_ACCESS_TOKEN='test-webhook-token').status_code
             finally:
                 close_old_connections()
@@ -55,12 +56,22 @@ class ConcurrentBalanceTests(TransactionTestCase):
         self.assertEqual(self.card.saldo, Decimal('21.23'))
         self.assertEqual(Transaction.objects.count(), 1)
 
-    def test_simultaneous_physical_card_purchases_record_only_one_sale(self):
+    def test_simultaneous_retries_record_only_one_physical_card_sale(self):
         card = Card.objects.create(is_temporary=True, nome='Etiqueta existente', saldo=Decimal('35.50'))
         statuses = self.parallel('/api/cards/physical/purchase/', {
-            'qr_data': str(card.qr_code_data), 'metodo': 'dinheiro',
+            'qr_data': str(card.qr_code_data), 'metodo': 'dinheiro', 'request_id': str(uuid4()),
         }, authenticated=True)
         self.assertEqual(statuses, [200, 200])
         self.assertEqual(Transaction.objects.filter(card=card, tipo='cartao').count(), 1)
+        card.refresh_from_db()
+        self.assertEqual(card.saldo, Decimal('35.50'))
+
+    def test_simultaneous_distinct_purchases_record_two_physical_cards(self):
+        card = Card.objects.create(is_temporary=True, nome='Etiqueta existente', saldo=Decimal('35.50'))
+        statuses = self.parallel('/api/cards/physical/purchase/', lambda: {
+            'qr_data': str(card.qr_code_data), 'metodo': 'dinheiro', 'request_id': str(uuid4()),
+        }, authenticated=True)
+        self.assertEqual(statuses, [200, 200])
+        self.assertEqual(Transaction.objects.filter(card=card, tipo='cartao').count(), 2)
         card.refresh_from_db()
         self.assertEqual(card.saldo, Decimal('35.50'))

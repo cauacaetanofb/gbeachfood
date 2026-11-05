@@ -258,7 +258,7 @@
             </div>
             <section id="saldo-physical-card" style="display:none;margin-top:1.5rem;padding-top:1.2rem;border-top:1px solid var(--border);" aria-labelledby="saldo-physical-heading">
                 <h3 id="saldo-physical-heading">Comprar cartão físico</h3>
-                <p class="temp-card-help">Para quem já tem a etiqueta e deseja um cartão em branco para colar. O valor é cobrado à parte; o saldo e o QR Code continuam os mesmos.</p>
+                <p class="temp-card-help">Compre um cartão em branco ou uma reposição para colar a etiqueta. Cada unidade custa R$ 2,00, cobrados à parte. O saldo e o QR Code continuam os mesmos.</p>
                 <form id="saldo-physical-form" class="dash-form" onsubmit="comprarCartaoFisico(event)">
                     <div class="field">
                         <label for="saldo-physical-method">Forma de pagamento do cartão físico</label>
@@ -365,6 +365,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_caixa.js' %}?v=9"></script>
+<script src="{% static 'js/dashboard_caixa.js' %}?v=10"></script>
 <script src="{% static 'js/temp_cards.js' %}?v=2"></script>
 {% endblock %}

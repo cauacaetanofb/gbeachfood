@@ -262,6 +262,36 @@ async function processPayment() {
 let saldoCard = null;
 let saldoLookupVersion = 0;
 let physicalPurchaseBusy = false;
+const physicalPurchasePending = new Map();
+const physicalPurchaseOperator = document.getElementById('temp-card-form').dataset.operatorId;
+
+function physicalPurchaseStorageKey(qr) {
+    return `gbeachfood.physical-purchase.${physicalPurchaseOperator}.${qr}`;
+}
+
+function pendingPhysicalPurchase(qr) {
+    if (physicalPurchasePending.has(qr)) return physicalPurchasePending.get(qr);
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(physicalPurchaseStorageKey(qr)));
+        if (saved && saved.qr_data === qr && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(saved.request_id)
+            && ['pix', 'credito', 'debito', 'dinheiro'].includes(saved.metodo)) {
+            const request = {request_id: saved.request_id, qr_data: qr, metodo: saved.metodo};
+            physicalPurchasePending.set(qr, request);
+            return request;
+        }
+    } catch (_) {}
+    return null;
+}
+
+function savePhysicalPurchase(request) {
+    physicalPurchasePending.set(request.qr_data, request);
+    try { sessionStorage.setItem(physicalPurchaseStorageKey(request.qr_data), JSON.stringify(request)); } catch (_) {}
+}
+
+function clearPhysicalPurchase(qr) {
+    physicalPurchasePending.delete(qr);
+    try { sessionStorage.removeItem(physicalPurchaseStorageKey(qr)); } catch (_) {}
+}
 
 function invalidarConsultaSaldo() {
     saldoCard = null;
@@ -278,15 +308,20 @@ function renderPhysicalCardPurchase(message = '') {
     const available = saldoCard && saldoCard.is_temporary && !saldoCard.bloqueado;
     panel.style.display = available ? 'block' : 'none';
     if (!available) return;
-    const bought = saldoCard.physical_card_purchased;
+    const pending = pendingPhysicalPurchase(saldoCard.qr_code_data);
+    const count = saldoCard.physical_card_purchase_count || 0;
     const price = Number(saldoCard.physical_card_price).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
-    document.getElementById('saldo-physical-form').style.display = bought ? 'none' : 'block';
+    document.getElementById('saldo-physical-form').style.display = 'block';
     const buyButton = document.getElementById('saldo-physical-buy');
-    buyButton.disabled = physicalPurchaseBusy || bought;
-    buyButton.textContent = physicalPurchaseBusy ? 'Registrando compra...' : `Comprar cartão físico — ${price}`;
-    document.getElementById('saldo-physical-method').disabled = physicalPurchaseBusy;
-    document.getElementById('saldo-physical-status').textContent = message || (bought
-        ? 'A compra do cartão físico já está registrada para esta etiqueta.' : '');
+    buyButton.disabled = physicalPurchaseBusy;
+    buyButton.textContent = physicalPurchaseBusy ? 'Registrando compra...'
+        : pending ? `Retomar compra — ${price}` : `Comprar cartão físico — ${price}`;
+    const methodSelect = document.getElementById('saldo-physical-method');
+    if (pending) methodSelect.value = pending.metodo;
+    methodSelect.disabled = physicalPurchaseBusy || Boolean(pending);
+    document.getElementById('saldo-physical-status').textContent = message || (pending
+        ? 'Há uma compra aguardando confirmação. Retome a mesma tentativa antes de cobrar outra unidade.'
+        : count ? `Compras de cartão físico nesta etiqueta: ${count}. Você pode registrar uma nova compra para reposição.` : '');
 }
 
 async function consultarSaldo(qrData) {
@@ -322,25 +357,47 @@ async function comprarCartaoFisico(event) {
         showToast('Consulte o cartão antes de registrar a compra.', 'error');
         return;
     }
-    if (!card.is_temporary || card.bloqueado || card.physical_card_purchased) return;
+    if (!card.is_temporary || card.bloqueado) return;
     const version = saldoLookupVersion;
-    const method = document.getElementById('saldo-physical-method').value;
+    const request = pendingPhysicalPurchase(card.qr_code_data) || {
+        request_id: crypto.randomUUID(), qr_data: card.qr_code_data,
+        metodo: document.getElementById('saldo-physical-method').value,
+    };
+    savePhysicalPurchase(request);
     physicalPurchaseBusy = true;
     renderPhysicalCardPurchase('Registrando a compra para esta etiqueta...');
     let message = '';
     try {
-        const data = await apiFetch('/api/cards/physical/purchase/', {
-            method: 'POST', body: JSON.stringify({qr_data: card.qr_code_data, metodo: method})
+        const response = await fetch('/api/cards/physical/purchase/', {
+            method: 'POST', credentials: 'same-origin', cache: 'no-store',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken},
+            body: JSON.stringify(request),
         });
+        const data = await response.json();
+        if (!response.ok) {
+            const error = new Error(data.error || 'Não foi possível registrar a compra.');
+            error.status = response.status;
+            throw error;
+        }
+        if (!data.success || data.card?.qr_code_data !== card.qr_code_data || !data.transaction_id) {
+            throw new Error('Resposta incompleta. Retome a mesma compra para confirmar o resultado.');
+        }
+        clearPhysicalPurchase(card.qr_code_data);
         message = data.created
             ? `Compra registrada via ${data.metodo_label}. Entregue o cartão físico para colar a etiqueta existente.`
-            : 'Já existe uma compra de cartão físico registrada para esta etiqueta. Confira o atendimento; nenhuma nova venda foi registrada.';
+            : 'Compra confirmada. Esta tentativa já havia sido registrada; nenhuma nova venda foi registrada pelo reenvio.';
         if (version === saldoLookupVersion && saldoCard?.id === card.id) {
             saldoCard.physical_card_purchased = true;
+            saldoCard.physical_card_purchase_count = data.card.physical_card_purchase_count;
         }
-        showToast(data.created ? `Compra do cartão físico registrada para ${card.nome}.` : 'Esta etiqueta já tem uma compra de cartão físico registrada.');
+        showToast(data.created ? `Compra do cartão físico registrada para ${card.nome}.` : 'Compra recuperada sem duplicar a cobrança.');
     } catch (e) {
-        message = `${e.message} Consulte o cartão novamente antes de receber outro pagamento.`;
+        if ([400, 403, 404].includes(e.status)) {
+            clearPhysicalPurchase(card.qr_code_data);
+            message = e.message;
+        } else {
+            message = `${e.message} Retome esta compra para confirmar o resultado antes de receber outro pagamento.`;
+        }
         showToast(message, 'error');
     } finally {
         physicalPurchaseBusy = false;
