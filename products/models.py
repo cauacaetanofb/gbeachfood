@@ -1,4 +1,27 @@
+from decimal import Decimal
+
+from django.core.validators import MinValueValidator
 from django.db import models
+
+
+class PhysicalCardPrice(models.Model):
+    """Preço único do item fixo do caixa, separado dos produtos do cardápio."""
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    preco = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('2.00'),
+        validators=[MinValueValidator(Decimal('0.01'))], verbose_name='Preço',
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(id=1), name='physical_card_price_singleton'),
+            models.CheckConstraint(condition=models.Q(preco__gte=Decimal('0.01')), name='physical_card_price_positive'),
+        ]
+
+    @classmethod
+    def current(cls):
+        price, _ = cls.objects.get_or_create(pk=1)
+        return price.preco
 
 
 class Category(models.Model):

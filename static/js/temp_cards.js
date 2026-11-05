@@ -12,7 +12,9 @@
         const text = document.getElementById('tc-valor').value;
         const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(text);
         const cents = match ? Number(match[1]) * 100 + Number((match[2] || '').padEnd(2, '0')) : 0;
-        const fee = document.getElementById('tc-fisico').checked ? 200 : 0;
+        const price = Number(pending?.preco_cartao ?? form.dataset.physicalCardPrice);
+        const fee = document.getElementById('tc-fisico').checked ? Math.round(price * 100) : 0;
+        document.getElementById('tc-physical-label').textContent = `${currency.format(price)} - Incluir cartão físico`;
         document.getElementById('tc-total-saldo').textContent = currency.format(cents / 100);
         document.getElementById('tc-total-fisico').textContent = currency.format(fee / 100);
         document.getElementById('tc-total-cobrar').textContent = currency.format((cents + fee) / 100);
@@ -29,6 +31,7 @@
         if (saved && typeof saved.request_id === 'string' && typeof saved.nome === 'string'
             && typeof saved.valor === 'string' && typeof saved.incluir_cartao_fisico === 'boolean') {
             pending = saved;
+            pending.preco_cartao ??= '2.00';
             for (const field of ['nome', 'cpf', 'telefone', 'valor', 'metodo']) {
                 document.getElementById(`tc-${field}`).value = saved[field] || '';
             }
@@ -39,6 +42,7 @@
         }
     } catch (_) {}
     form.addEventListener('input', totals);
+    form.addEventListener('physicalpricechange', totals);
     clearButton.disabled = Boolean(pending);
     clearButton.addEventListener('click', () => {
         if (busy || pending) return;
@@ -60,7 +64,8 @@
         if (busy) return;
         if (!pending) {
             if (!form.reportValidity()) return;
-            pending = {request_id: crypto.randomUUID(), incluir_cartao_fisico: document.getElementById('tc-fisico').checked};
+            pending = {request_id: crypto.randomUUID(), incluir_cartao_fisico: document.getElementById('tc-fisico').checked,
+                preco_cartao: form.dataset.physicalCardPrice};
             for (const field of ['nome', 'cpf', 'telefone', 'valor', 'metodo']) pending[field] = document.getElementById(`tc-${field}`).value;
             try { sessionStorage.setItem(storageKey, JSON.stringify(pending)); } catch (_) {}
         }
@@ -112,6 +117,7 @@
                 status.textContent = 'O cartão já foi criado. Abra a etiqueta pelo botão abaixo para imprimir.';
             } else if ([400, 403, 404].includes(error.status)) {
                 clearPending();
+                if (error.status === 400) await refreshCashierPhysicalPrice().catch(() => {});
                 status.textContent = error.message;
             } else {
                 button.textContent = 'Retomar criação e imprimir cartão';

@@ -275,7 +275,8 @@ function pendingPhysicalPurchase(qr) {
         const saved = JSON.parse(sessionStorage.getItem(physicalPurchaseStorageKey(qr)));
         if (saved && saved.qr_data === qr && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(saved.request_id)
             && ['pix', 'credito', 'debito', 'dinheiro', 'saldo'].includes(saved.metodo)) {
-            const request = {request_id: saved.request_id, qr_data: qr, metodo: saved.metodo};
+            const request = {request_id: saved.request_id, qr_data: qr, metodo: saved.metodo,
+                preco_cartao: saved.preco_cartao ?? '2.00'};
             physicalPurchasePending.set(qr, request);
             return request;
         }
@@ -304,6 +305,19 @@ function invalidarConsultaSaldo() {
 document.getElementById('saldo-qr-input').addEventListener('input', invalidarConsultaSaldo);
 document.getElementById('saldo-physical-method').addEventListener('change', () => renderPhysicalCardPurchase());
 
+async function refreshCashierPhysicalPrice() {
+    const data = await apiFetch('/api/products/physical-card/');
+    const form = document.getElementById('temp-card-form');
+    form.dataset.physicalCardPrice = data.preco;
+    form.dispatchEvent(new Event('physicalpricechange'));
+    if (saldoCard) {
+        saldoCard.physical_card_price = data.preco;
+        renderPhysicalCardPurchase();
+    }
+}
+
+window.addEventListener('focus', () => refreshCashierPhysicalPrice().catch(() => {}));
+
 function renderPhysicalCardPurchase(message = '') {
     const panel = document.getElementById('saldo-physical-card');
     const available = saldoCard && saldoCard.is_temporary && !saldoCard.bloqueado;
@@ -311,7 +325,8 @@ function renderPhysicalCardPurchase(message = '') {
     if (!available) return;
     const pending = pendingPhysicalPurchase(saldoCard.qr_code_data);
     const count = saldoCard.physical_card_purchase_count || 0;
-    const price = Number(saldoCard.physical_card_price).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+    const price = Number(pending?.preco_cartao ?? saldoCard.physical_card_price).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+    document.getElementById('saldo-physical-description').textContent = `Compre um cartão em branco ou uma reposição por ${price}. Pague à parte ou use o saldo da etiqueta. O QR Code continua o mesmo.`;
     document.getElementById('saldo-physical-form').style.display = 'block';
     const buyButton = document.getElementById('saldo-physical-buy');
     buyButton.disabled = physicalPurchaseBusy;
@@ -366,6 +381,7 @@ async function comprarCartaoFisico(event) {
     const request = pendingPhysicalPurchase(card.qr_code_data) || {
         request_id: crypto.randomUUID(), qr_data: card.qr_code_data,
         metodo: document.getElementById('saldo-physical-method').value,
+        preco_cartao: card.physical_card_price,
     };
     savePhysicalPurchase(request);
     physicalPurchaseBusy = true;
@@ -396,12 +412,14 @@ async function comprarCartaoFisico(event) {
             saldoCard.physical_card_purchased = true;
             saldoCard.physical_card_purchase_count = data.card.physical_card_purchase_count;
             saldoCard.saldo = data.card.saldo;
+            saldoCard.physical_card_price = data.card.physical_card_price;
             document.getElementById('saldo-value').textContent = `R$ ${parseFloat(data.card.saldo).toFixed(2)}`;
         }
         showToast(data.created ? `Compra do cartão físico registrada para ${card.nome}.` : 'Compra recuperada sem duplicar a cobrança.');
     } catch (e) {
         if ([400, 403, 404].includes(e.status)) {
             clearPhysicalPurchase(card.qr_code_data);
+            if (e.status === 400) await refreshCashierPhysicalPrice().catch(() => {});
             message = e.message;
         } else {
             message = `${e.message} Retome esta compra para confirmar o resultado antes de receber outro pagamento.`;

@@ -46,7 +46,7 @@ O sistema foi desenvolvido com foco em **uso mobile** (celular), mas funciona pe
 
 ### 🟡 Caixa
 - Cria **cartões temporários** com QR Code para clientes sem cadastro
-- Imprime e reimprime **etiquetas**, com venda opcional de cartão físico em branco por R$ 2,00
+- Imprime e reimprime **etiquetas**, com venda opcional de cartão físico em branco pelo preço definido pelo administrador
 - **Adiciona e remove saldo** dos cartões
 - **Busca cartões por CPF**
 - **Bloqueia/cancela** cartões
@@ -496,12 +496,18 @@ Referências: [pagamento por cartão](https://docs.asaas.com/docs/payments-via-c
 
 ## Cartão temporário com etiqueta
 
+Em **Administrador → Produtos**, o item **Cartão físico** fica fixado no topo,
+mesmo ao buscar ou filtrar o cardápio. O administrador pode alterar seu preço,
+mas não excluir o item. O preço inicial é R$ 2,00, salvo no banco pela migração
+`products.0004_physical_card_price`; são aceitos valores positivos com até duas
+casas decimais. O item é exclusivo do caixa e não aparece no cardápio de alimentos.
+
 No caixa, preencha nome, CPF e telefone (os dois últimos são opcionais), valor
 inicial e forma de pagamento. O UUID é gerado automaticamente; não é preciso
-escanear nem informar um QR existente. Marque **R$ 2,00 - Incluir cartão físico**
+escanear nem informar um QR existente. Marque **Incluir cartão físico**, ao lado do preço atual,
 se o cliente comprar o cartão em branco para colar a etiqueta.
 
-Os R$ 2,00 são cobrados à parte: R$ 50,00 de saldo e um cartão físico totalizam
+O cartão é cobrado à parte: por exemplo, com preço de R$ 2,00, R$ 50,00 de saldo e um cartão físico totalizam
 R$ 52,00 recebidos, com R$ 50,00 disponíveis para consumo. A venda fica registrada
 como **Venda de cartão físico**, separada do depósito, com método e operador.
 Os relatórios do caixa e do administrador exibem a venda separadamente; o total
@@ -524,10 +530,10 @@ buscar por CPF, e em **Saldo**, após consultar o QR. Reimprimir não movimenta 
 nem registra outra venda. Cartões cancelados não podem ser reimpressos.
 
 Se o cliente levou somente a etiqueta e quiser comprar o cartão físico depois,
-abra **Saldo**, consulte o QR da etiqueta e use **Comprar cartão físico — R$ 2,00**.
+abra **Saldo**, consulte o QR da etiqueta e use **Comprar cartão físico**, com o preço atual exibido.
 Escolha a forma de pagamento nessa seção. Para PIX, dinheiro, crédito ou débito,
-registre após receber os R$ 2,00 à parte. A opção **Usar saldo** desconta R$ 2,00
-da própria etiqueta e atualiza o saldo exibido. É necessário ter pelo menos R$ 2,00;
+registre após receber o preço do cartão à parte. A opção **Usar saldo** desconta esse preço
+da própria etiqueta e atualiza o saldo exibido. É necessário ter saldo suficiente para o preço atual;
 se faltar saldo, nenhuma venda ou débito é registrado. O QR permanece o mesmo.
 A venda entra nos relatórios como **Venda de cartão físico** com o método escolhido.
 Quando paga com saldo, aparece no total pago via saldo e na venda de cartões,
@@ -535,9 +541,17 @@ mas não como uma nova entrada de dinheiro no caixa. O caixa também mostra a
 parcela das vendas de cartões paga com saldo. Basta colar a etiqueta no cartão em branco.
 A consulta mostra quantas compras de cartão físico já foram registradas. É possível
 comprar várias unidades para a mesma etiqueta, inclusive para substituir um cartão
-perdido. Cada nova compra registra R$ 2,00 nos relatórios. O saldo só é descontado
+perdido. Cada nova compra registra o preço vigente nos relatórios. O saldo só é descontado
 quando a forma de pagamento escolhida é **Usar saldo**; o QR permanece o mesmo.
 A reimpressão da etiqueta continua gratuita e não registra a venda do cartão.
+
+Os dois formulários usam o mesmo preço do banco, inclusive nos totais e no desconto
+do saldo. O caixa atualiza o preço ao abrir a página ou voltar à aba do navegador.
+Se o administrador alterar o preço entre a consulta e uma nova compra, a API recusa
+a tentativa sem gerar cobrança, atualiza o valor na tela e pede nova confirmação.
+Vendas concluídas e reenvios de tentativas já registradas mantêm o preço original.
+O campo `preco_cartao` enviado pelo navegador apenas confirma o valor exibido;
+o servidor define o preço cobrado e recusa valores divergentes.
 
 Cada compra tem um `request_id` único. Repetir a mesma solicitação, com a mesma
 etiqueta, método e operador, retorna a venda já registrada; uma nova solicitação

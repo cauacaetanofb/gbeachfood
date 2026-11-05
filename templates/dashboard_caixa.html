@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static l10n %}
 {% block title %}GBeachFood — Caixa{% endblock %}
 
 {% block extra_head %}
@@ -154,7 +154,7 @@
     <div class="surface-card">
         <h3>Criar Cartão Temporário</h3>
         <p class="temp-card-help">Crie o cartão do cliente e imprima o QR Code em uma etiqueta. O cartão físico em branco é opcional.</p>
-        <form class="dash-form" id="temp-card-form" data-operator-id="{{ user.pk }}">
+        <form class="dash-form" id="temp-card-form" data-operator-id="{{ user.pk }}" data-physical-card-price="{{ physical_card_price|unlocalize }}">
             <fieldset id="tc-fields" class="temp-card-fields">
             <div class="field">
                 <label for="tc-uuid">UUID do cartão</label>
@@ -179,7 +179,7 @@
             </div>
             <label class="temp-card-option" for="tc-fisico">
                 <input id="tc-fisico" type="checkbox">
-                <span>R$ 2,00 - Incluir cartão físico</span>
+                <span id="tc-physical-label">R$ {{ physical_card_price|floatformat:2 }} - Incluir cartão físico</span>
             </label>
             <p class="temp-card-help">O valor do cartão físico é cobrado à parte e não altera o saldo disponível para consumo.</p>
             <div class="field">
@@ -258,7 +258,7 @@
             </div>
             <section id="saldo-physical-card" style="display:none;margin-top:1.5rem;padding-top:1.2rem;border-top:1px solid var(--border);" aria-labelledby="saldo-physical-heading">
                 <h3 id="saldo-physical-heading">Comprar cartão físico</h3>
-                <p class="temp-card-help">Compre um cartão em branco ou uma reposição por R$ 2,00. Pague à parte ou use o saldo da etiqueta. O QR Code continua o mesmo.</p>
+                <p id="saldo-physical-description" class="temp-card-help">Compre um cartão em branco ou uma reposição por R$ {{ physical_card_price|floatformat:2 }}. Pague à parte ou use o saldo da etiqueta. O QR Code continua o mesmo.</p>
                 <form id="saldo-physical-form" class="dash-form" onsubmit="comprarCartaoFisico(event)">
                     <div class="field">
                         <label for="saldo-physical-method">Forma de pagamento do cartão físico</label>
@@ -271,7 +271,7 @@
                         </select>
                     </div>
                     <p id="saldo-physical-payment-help" class="temp-card-help">Registre a compra após receber o pagamento do cartão físico.</p>
-                    <button type="submit" id="saldo-physical-buy" class="btn-primary">Comprar cartão físico — R$ 2,00</button>
+                    <button type="submit" id="saldo-physical-buy" class="btn-primary">Comprar cartão físico — R$ {{ physical_card_price|floatformat:2 }}</button>
                 </form>
                 <p id="saldo-physical-status" class="temp-card-help" role="status" aria-live="polite"></p>
             </section>
@@ -366,6 +366,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_caixa.js' %}?v=11"></script>
-<script src="{% static 'js/temp_cards.js' %}?v=2"></script>
+<script src="{% static 'js/dashboard_caixa.js' %}?v=12"></script>
+<script src="{% static 'js/temp_cards.js' %}?v=3"></script>
 {% endblock %}

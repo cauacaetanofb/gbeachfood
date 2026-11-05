@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static l10n %}
 {% block title %}GBeachFood — Admin{% endblock %}
 
 {% block body_class %}dashboard-page dashboard-admin{% endblock %}
@@ -32,6 +32,19 @@
 
 <!-- Tab: Produtos -->
 <div id="tab-produtos" class="tab-content active">
+    <section id="physical-card-product" class="surface-card" aria-labelledby="physical-card-title">
+        <span class="eyebrow">ITEM FIXO</span>
+        <h3 id="physical-card-title">Cartão físico</h3>
+        <p style="color:var(--text-secondary);margin-bottom:1rem;">Cartão em branco para colar a etiqueta. Este preço vale para a criação da etiqueta e para compras ou reposições no caixa. Este item não pode ser excluído.</p>
+        <form id="physical-card-price-form" class="dash-form" onsubmit="savePhysicalCardPrice(event)" style="display:flex;align-items:flex-end;gap:0.75rem;flex-wrap:wrap;">
+            <div class="field" style="flex:1;min-width:160px;margin:0;">
+                <label for="physical-card-price">Preço (R$)</label>
+                <input id="physical-card-price" class="input" type="number" min="0.01" max="99999999.99" step="0.01" value="{{ physical_card_price|unlocalize }}" required>
+            </div>
+            <button id="physical-card-price-save" class="btn-primary" type="submit" style="width:auto;">Salvar preço</button>
+        </form>
+        <p id="physical-card-price-status" role="status" aria-live="polite" style="color:var(--text-secondary);margin-top:0.75rem;"></p>
+    </section>
     <div class="surface-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
             <h3 style="margin:0;">Produtos</h3>
@@ -302,5 +315,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_admin.js' %}?v=8"></script>
+<script src="{% static 'js/dashboard_admin.js' %}?v=9"></script>
 {% endblock %}

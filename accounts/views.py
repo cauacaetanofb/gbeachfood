@@ -12,6 +12,7 @@ import json
 
 from .forms import LoginForm, ClienteRegisterForm, StaffUserForm
 from .models import User, PasswordResetCode
+from products.models import PhysicalCardPrice
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,10 @@ def dashboard_view(request):
             view_as = requested
 
     template = template_map.get(view_as, 'login.html')
-    return render(request, template, {'user': user, 'is_admin': user.user_type == 'admin', 'active_page': view_as})
+    context = {'user': user, 'is_admin': user.user_type == 'admin', 'active_page': view_as}
+    if view_as in ('admin', 'caixa'):
+        context['physical_card_price'] = PhysicalCardPrice.current()
+    return render(request, template, context)
 
 
 # ---- Esqueci minha senha ----

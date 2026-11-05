@@ -18,6 +18,33 @@ function openModal(id) { document.getElementById(id).classList.add('active'); }
 // ===== Products =====
 let allProducts = [];
 
+async function savePhysicalCardPrice(event) {
+    event.preventDefault();
+    const form = document.getElementById('physical-card-price-form');
+    const input = document.getElementById('physical-card-price');
+    const button = document.getElementById('physical-card-price-save');
+    const status = document.getElementById('physical-card-price-status');
+    if (button.disabled || !form.reportValidity()) return;
+    button.disabled = true;
+    input.disabled = true;
+    status.textContent = 'Salvando preço...';
+    try {
+        const data = await apiFetch('/api/products/physical-card/update/', {
+            method: 'POST', body: JSON.stringify({preco: input.value}),
+        });
+        input.value = data.preco;
+        const price = Number(data.preco).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+        status.textContent = `Preço salvo: ${price}. As novas compras no caixa usarão este valor.`;
+        showToast('Preço do cartão físico atualizado!');
+    } catch (error) {
+        status.textContent = error.message;
+        showToast(error.message, 'error');
+    } finally {
+        button.disabled = false;
+        input.disabled = false;
+    }
+}
+
 async function loadProducts() {
     try {
         const data = await apiFetch('/api/products/all/');

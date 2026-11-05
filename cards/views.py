@@ -21,9 +21,15 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST, require_GET
 
 from .models import Card, Transaction, Recarga, CardIssuance
+from products.models import PhysicalCardPrice
 
 logger = logging.getLogger(__name__)
-PHYSICAL_CARD_PRICE = D('2.00')
+
+def _validate_physical_card_price(data, current_price):
+    # Páginas anteriores a esta configuração exibiam R$ 2,00.
+    # O valor recebido só confirma o preço exibido; nunca define a cobrança.
+    if money(data.get('preco_cartao', '2.00')) != current_price:
+        raise InvalidInput('O preço do cartão físico foi alterado pelo administrador. Confira o novo valor e confirme novamente; esta tentativa não gerou cobrança.')
 
 
 def _payment_method(data, *, allow_balance=False):
@@ -92,7 +98,7 @@ def api_check_balance(request):
                 'bloqueado': card.bloqueado,
                 'physical_card_purchased': physical_purchases > 0,
                 'physical_card_purchase_count': physical_purchases,
-                'physical_card_price': str(PHYSICAL_CARD_PRICE),
+                'physical_card_price': str(PhysicalCardPrice.current()),
             }
         })
         response['Cache-Control'] = 'private, no-store'
@@ -110,7 +116,7 @@ def api_buy_physical_card(request):
     if request.user.user_type not in ('admin', 'caixa'):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
     data = request.json_data
-    if set(data) != {'qr_data', 'metodo', 'request_id'}:
+    if set(data) - {'qr_data', 'metodo', 'request_id', 'preco_cartao'} or not {'qr_data', 'metodo', 'request_id'} <= set(data):
         raise InvalidInput('Atualize a página. Informe código do cartão, forma de pagamento e identificador da compra.')
     try:
         qr_data = UUID(str(data['qr_data']).strip())
@@ -127,9 +133,10 @@ def api_buy_physical_card(request):
         raise InvalidInput('Esta compra é destinada a clientes com etiqueta de cartão temporário.')
     # A chave única protege a mesma compra inclusive entre requisições concorrentes.
     # Outra chave representa outra unidade, mesmo usando a mesma etiqueta.
+    current_price = PhysicalCardPrice.current()
     sale, created = Transaction.objects.get_or_create(
         physical_purchase_request_id=request_id,
-        defaults={'card': card, 'tipo': 'cartao', 'valor': PHYSICAL_CARD_PRICE,
+        defaults={'card': card, 'tipo': 'cartao', 'valor': current_price,
                   'metodo': metodo, 'origem': 'caixa', 'cpf_cliente': card.cpf,
                   'operador': request.user,
                   'descricao': 'Venda de cartão físico em branco — etiqueta já existente'},
@@ -137,6 +144,8 @@ def api_buy_physical_card(request):
     if not created and (sale.card_id != card.pk or sale.metodo != metodo
                         or sale.operador_id != request.user.pk or sale.tipo != 'cartao'):
         return JsonResponse({'error': 'Esta solicitação já foi usada para outra compra. Confira o atendimento antes de iniciar uma nova.'}, status=409)
+    if created:
+        _validate_physical_card_price(data, current_price)
     if created and metodo == 'saldo':
         if card.saldo < sale.valor:
             raise InvalidInput('Saldo insuficiente para comprar o cartão físico. Recarregue a etiqueta ou escolha outra forma de pagamento.')
@@ -149,7 +158,7 @@ def api_buy_physical_card(request):
         'metodo_label': sale.get_metodo_display(),
         'card': {'id': card.pk, 'qr_code_data': str(card.qr_code_data),
                  'physical_card_purchased': True, 'physical_card_purchase_count': physical_purchases,
-                 'saldo': str(card.saldo)},
+                 'saldo': str(card.saldo), 'physical_card_price': str(current_price)},
         'label_url': reverse('card_label', args=[card.pk]),
     })
     response['Cache-Control'] = 'private, no-store'
@@ -217,7 +226,7 @@ def api_create_temp_card(request):
     if request.user.user_type not in ('admin', 'caixa'):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
     data = request.json_data
-    if set(data) - {'nome', 'cpf', 'telefone', 'valor', 'metodo', 'incluir_cartao_fisico', 'request_id'}:
+    if set(data) - {'nome', 'cpf', 'telefone', 'valor', 'metodo', 'incluir_cartao_fisico', 'request_id', 'preco_cartao'}:
         raise InvalidInput('Atualize a página. O novo cartão e seu QR Code são gerados automaticamente.')
     try:
         request_id = UUID(str(data.get('request_id', '')))
@@ -240,8 +249,8 @@ def api_create_temp_card(request):
     incluir = data.get('incluir_cartao_fisico', False)
     if type(incluir) is not bool:
         raise InvalidInput('A opção de cartão físico deve ser marcada ou desmarcada.')
-    # O preço é definido aqui, nunca aceito do navegador, e não compõe o saldo.
-    valor_cartao = PHYSICAL_CARD_PRICE if incluir else D('0.00')
+    # Usa o preço configurado pelo administrador, sem compor o saldo de consumo.
+    valor_cartao = PhysicalCardPrice.current() if incluir else D('0.00')
     fingerprint = hashlib.sha256(json.dumps(
         [nome, cpf, telefone, str(valor), metodo, incluir], ensure_ascii=False).encode()).hexdigest()
     issuance, created = CardIssuance.objects.get_or_create(pk=request_id, defaults={
@@ -251,6 +260,8 @@ def api_create_temp_card(request):
     if not created and (issuance.operador_id != request.user.pk or issuance.request_hash != fingerprint):
         return JsonResponse({'error': 'Esta solicitação já foi usada. Consulte o cartão antes de iniciar outra emissão.'}, status=409)
     if created:
+        if incluir:
+            _validate_physical_card_price(data, valor_cartao)
         card = Card.objects.create(is_temporary=True, nome=nome, cpf=cpf, telefone=telefone, saldo=valor)
         Transaction.objects.create(
             card=card, tipo='deposito', valor=valor, metodo=metodo, origem='caixa',

@@ -1,9 +1,34 @@
 import base64
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 
-from .models import Product, Category
+from cards.validation import money, json_api, InvalidInput
+from .models import Product, Category, PhysicalCardPrice
+
+
+@login_required
+@require_GET
+def api_physical_card_price(request):
+    if request.user.user_type not in ('admin', 'caixa'):
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+    response = JsonResponse({'preco': str(PhysicalCardPrice.current())})
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@login_required
+@require_POST
+@json_api
+def api_update_physical_card_price(request):
+    if request.user.user_type != 'admin':
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+    if set(request.json_data) != {'preco'}:
+        raise InvalidInput('Informe apenas o preço do cartão físico.')
+    price = money(request.json_data['preco'])
+    # Este item não possui rota de exclusão nem pertence ao cardápio.
+    PhysicalCardPrice.objects.update_or_create(pk=1, defaults={'preco': price})
+    return JsonResponse({'success': True, 'preco': str(price)})
 
 
 def _image_to_base64(image_file):
