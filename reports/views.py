@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
 from datetime import timedelta
 from django.utils import timezone
@@ -11,10 +11,11 @@ from cards.models import Transaction
 
 def card_sales_summary(transactions):
     sales = transactions.filter(tipo='cartao', origem='caixa')
-    totals = sales.aggregate(total=Sum('valor'), count=Count('id'))
+    totals = sales.aggregate(total=Sum('valor'), count=Count('id'), total_saldo=Sum('valor', filter=Q(metodo='saldo')))
     methods = sales.values('metodo').annotate(total=Sum('valor'), count=Count('id')).order_by('metodo')
     labels = dict(Transaction.METODO_CHOICES)
-    return {'total': str(totals['total'] or 0), 'count': totals['count'], 'por_metodo': [
+    return {'total': str(totals['total'] or 0), 'count': totals['count'],
+            'total_saldo': str(totals['total_saldo'] or 0), 'por_metodo': [
         {'metodo': labels.get(item['metodo'], item['metodo']), 'total': str(item['total']), 'count': item['count']}
         for item in methods
     ]}
@@ -97,8 +98,8 @@ def api_sales_report(request):
         count=Count('id')
     )
 
-    # Total pago via saldo (pagamentos)
-    pagamentos_saldo = transactions.filter(tipo='pagamento').aggregate(
+    # Débitos de consumo e compras de cartão físico pagas com saldo.
+    pagamentos_saldo = transactions.filter(Q(tipo='pagamento') | Q(tipo='cartao', metodo='saldo')).aggregate(
         total=Sum('valor'),
         count=Count('id')
     )
@@ -178,8 +179,8 @@ def api_caixa_daily_report(request):
     # Depósitos APENAS do caixa (presenciais)
     metodo_labels = dict(Transaction.METODO_CHOICES)
     dep_caixa = transactions.filter(tipo='deposito', origem='caixa')
-    # Recebimentos presenciais: crédito de consumo e venda do cartão, sem débito do saldo.
-    depositos_por_metodo = transactions.filter(origem='caixa', tipo__in=['deposito', 'cartao']).values('metodo').annotate(
+    # Saldo já foi recebido na recarga: seu uso não é uma nova entrada de dinheiro.
+    depositos_por_metodo = transactions.filter(origem='caixa', tipo__in=['deposito', 'cartao']).exclude(metodo='saldo').values('metodo').annotate(
         total=Sum('valor'),
         count=Count('id')
     ).order_by('-total')

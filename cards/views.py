@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 PHYSICAL_CARD_PRICE = D('2.00')
 
 
-def _payment_method(data):
+def _payment_method(data, *, allow_balance=False):
     method = data.get('metodo', 'dinheiro')
-    if method not in ('dinheiro', 'pix', 'credito', 'debito'):
+    allowed = ('dinheiro', 'pix', 'credito', 'debito') + (('saldo',) if allow_balance else ())
+    if method not in allowed:
         raise InvalidInput('Forma de pagamento inválida.')
     return method
 
@@ -116,7 +117,7 @@ def api_buy_physical_card(request):
         request_id = UUID(str(data['request_id']))
     except (ValueError, TypeError, AttributeError):
         raise InvalidInput('Código do cartão ou identificador da compra inválido.') from None
-    metodo = _payment_method(data)
+    metodo = _payment_method(data, allow_balance=True)
     card = Card.objects.select_for_update().filter(qr_code_data=qr_data).first()
     if card is None:
         return JsonResponse({'error': 'Cartão não encontrado'}, status=404)
@@ -136,6 +137,11 @@ def api_buy_physical_card(request):
     if not created and (sale.card_id != card.pk or sale.metodo != metodo
                         or sale.operador_id != request.user.pk or sale.tipo != 'cartao'):
         return JsonResponse({'error': 'Esta solicitação já foi usada para outra compra. Confira o atendimento antes de iniciar uma nova.'}, status=409)
+    if created and metodo == 'saldo':
+        if card.saldo < sale.valor:
+            raise InvalidInput('Saldo insuficiente para comprar o cartão físico. Recarregue a etiqueta ou escolha outra forma de pagamento.')
+        card.saldo -= sale.valor
+        card.save(update_fields=['saldo'])
     physical_purchases = card.transactions.filter(tipo='cartao').count()
     response = JsonResponse({
         'success': True, 'created': created, 'transaction_id': sale.pk,

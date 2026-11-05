@@ -505,7 +505,7 @@ Os R$ 2,00 são cobrados à parte: R$ 50,00 de saldo e um cartão físico totali
 R$ 52,00 recebidos, com R$ 50,00 disponíveis para consumo. A venda fica registrada
 como **Venda de cartão físico**, separada do depósito, com método e operador.
 Os relatórios do caixa e do administrador exibem a venda separadamente; o total
-recebido por método no caixa inclui depósitos e cartões físicos. Cada componente
+recebido por método no caixa inclui depósitos e cartões físicos pagos por meios externos. Cada componente
 é um lançamento, mesmo quando ambos são recebidos em um único pagamento.
 
 Após confirmar o recebimento, clique em **Criar e imprimir cartão**. A tela da
@@ -525,17 +525,25 @@ nem registra outra venda. Cartões cancelados não podem ser reimpressos.
 
 Se o cliente levou somente a etiqueta e quiser comprar o cartão físico depois,
 abra **Saldo**, consulte o QR da etiqueta e use **Comprar cartão físico — R$ 2,00**.
-Escolha a forma de pagamento nessa seção e registre após receber os R$ 2,00 à parte.
-A venda entra nos mesmos relatórios de cartões físicos; não adiciona nem desconta
-saldo e mantém o QR existente. Basta colar a etiqueta no cartão em branco.
+Escolha a forma de pagamento nessa seção. Para PIX, dinheiro, crédito ou débito,
+registre após receber os R$ 2,00 à parte. A opção **Usar saldo** desconta R$ 2,00
+da própria etiqueta e atualiza o saldo exibido. É necessário ter pelo menos R$ 2,00;
+se faltar saldo, nenhuma venda ou débito é registrado. O QR permanece o mesmo.
+A venda entra nos relatórios como **Venda de cartão físico** com o método escolhido.
+Quando paga com saldo, aparece no total pago via saldo e na venda de cartões,
+mas não como uma nova entrada de dinheiro no caixa. O caixa também mostra a
+parcela das vendas de cartões paga com saldo. Basta colar a etiqueta no cartão em branco.
 A consulta mostra quantas compras de cartão físico já foram registradas. É possível
 comprar várias unidades para a mesma etiqueta, inclusive para substituir um cartão
-perdido. Cada nova compra registra R$ 2,00 nos relatórios, mantendo o saldo e o QR.
+perdido. Cada nova compra registra R$ 2,00 nos relatórios. O saldo só é descontado
+quando a forma de pagamento escolhida é **Usar saldo**; o QR permanece o mesmo.
 A reimpressão da etiqueta continua gratuita e não registra a venda do cartão.
 
 Cada compra tem um `request_id` único. Repetir a mesma solicitação, com a mesma
 etiqueta, método e operador, retorna a venda já registrada; uma nova solicitação
-registra outra unidade. Se a conexão falhar, use **Retomar compra** antes de cobrar
+registra outra unidade. Venda e desconto do saldo são gravados na mesma transação;
+reenvios não descontam novamente, mesmo se o primeiro pagamento tiver zerado o saldo.
+Se a conexão falhar, use **Retomar compra** antes de cobrar
 outra unidade. A tentativa pendente fica salva na sessão da aba, por operador e
 etiqueta, e pode ser retomada após recarregar a página e consultar o mesmo QR.
 

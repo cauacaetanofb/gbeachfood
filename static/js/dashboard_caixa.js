@@ -274,7 +274,7 @@ function pendingPhysicalPurchase(qr) {
     try {
         const saved = JSON.parse(sessionStorage.getItem(physicalPurchaseStorageKey(qr)));
         if (saved && saved.qr_data === qr && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(saved.request_id)
-            && ['pix', 'credito', 'debito', 'dinheiro'].includes(saved.metodo)) {
+            && ['pix', 'credito', 'debito', 'dinheiro', 'saldo'].includes(saved.metodo)) {
             const request = {request_id: saved.request_id, qr_data: qr, metodo: saved.metodo};
             physicalPurchasePending.set(qr, request);
             return request;
@@ -302,6 +302,7 @@ function invalidarConsultaSaldo() {
 }
 
 document.getElementById('saldo-qr-input').addEventListener('input', invalidarConsultaSaldo);
+document.getElementById('saldo-physical-method').addEventListener('change', () => renderPhysicalCardPurchase());
 
 function renderPhysicalCardPurchase(message = '') {
     const panel = document.getElementById('saldo-physical-card');
@@ -319,6 +320,9 @@ function renderPhysicalCardPurchase(message = '') {
     const methodSelect = document.getElementById('saldo-physical-method');
     if (pending) methodSelect.value = pending.metodo;
     methodSelect.disabled = physicalPurchaseBusy || Boolean(pending);
+    document.getElementById('saldo-physical-payment-help').textContent = methodSelect.value === 'saldo'
+        ? `Ao confirmar a compra, serão descontados ${price} do saldo desta etiqueta.`
+        : 'Registre a compra após receber o pagamento do cartão físico.';
     document.getElementById('saldo-physical-status').textContent = message || (pending
         ? 'Há uma compra aguardando confirmação. Retome a mesma tentativa antes de cobrar outra unidade.'
         : count ? `Compras de cartão físico nesta etiqueta: ${count}. Você pode registrar uma nova compra para reposição.` : '');
@@ -384,11 +388,15 @@ async function comprarCartaoFisico(event) {
         }
         clearPhysicalPurchase(card.qr_code_data);
         message = data.created
-            ? `Compra registrada via ${data.metodo_label}. Entregue o cartão físico para colar a etiqueta existente.`
+            ? data.metodo === 'saldo'
+                ? 'Compra paga com o saldo da etiqueta. O saldo exibido foi atualizado. Entregue o cartão físico ao cliente.'
+                : `Compra registrada via ${data.metodo_label}. Entregue o cartão físico para colar a etiqueta existente.`
             : 'Compra confirmada. Esta tentativa já havia sido registrada; nenhuma nova venda foi registrada pelo reenvio.';
         if (version === saldoLookupVersion && saldoCard?.id === card.id) {
             saldoCard.physical_card_purchased = true;
             saldoCard.physical_card_purchase_count = data.card.physical_card_purchase_count;
+            saldoCard.saldo = data.card.saldo;
+            document.getElementById('saldo-value').textContent = `R$ ${parseFloat(data.card.saldo).toFixed(2)}`;
         }
         showToast(data.created ? `Compra do cartão físico registrada para ${card.nome}.` : 'Compra recuperada sem duplicar a cobrança.');
     } catch (e) {
@@ -457,6 +465,7 @@ async function loadDailyReport() {
                 <div class="surface-card" style="flex:1;text-align:center;margin:0;min-width:45%;background:var(--bg-dark);">
                     <div style="color:var(--primary);font-size:1.3rem;font-weight:800;">R$ ${parseFloat(data.vendas_cartoes.total).toFixed(2)}</div>
                     <div style="color:var(--text-secondary);font-size:0.72rem;">Cartões físicos (${data.vendas_cartoes.count})</div>
+                    <div style="color:var(--text-secondary);font-size:0.72rem;">Com saldo: R$ ${parseFloat(data.vendas_cartoes.total_saldo).toFixed(2)}</div>
                 </div>
             </div>
         `;

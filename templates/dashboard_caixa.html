@@ -258,7 +258,7 @@
             </div>
             <section id="saldo-physical-card" style="display:none;margin-top:1.5rem;padding-top:1.2rem;border-top:1px solid var(--border);" aria-labelledby="saldo-physical-heading">
                 <h3 id="saldo-physical-heading">Comprar cartão físico</h3>
-                <p class="temp-card-help">Compre um cartão em branco ou uma reposição para colar a etiqueta. Cada unidade custa R$ 2,00, cobrados à parte. O saldo e o QR Code continuam os mesmos.</p>
+                <p class="temp-card-help">Compre um cartão em branco ou uma reposição por R$ 2,00. Pague à parte ou use o saldo da etiqueta. O QR Code continua o mesmo.</p>
                 <form id="saldo-physical-form" class="dash-form" onsubmit="comprarCartaoFisico(event)">
                     <div class="field">
                         <label for="saldo-physical-method">Forma de pagamento do cartão físico</label>
@@ -267,9 +267,10 @@
                             <option value="credito">Cartão de Crédito</option>
                             <option value="debito">Cartão de Débito</option>
                             <option value="dinheiro">Dinheiro</option>
+                            <option value="saldo">Usar saldo</option>
                         </select>
                     </div>
-                    <p class="temp-card-help">Registre a compra após receber o pagamento do cartão físico.</p>
+                    <p id="saldo-physical-payment-help" class="temp-card-help">Registre a compra após receber o pagamento do cartão físico.</p>
                     <button type="submit" id="saldo-physical-buy" class="btn-primary">Comprar cartão físico — R$ 2,00</button>
                 </form>
                 <p id="saldo-physical-status" class="temp-card-help" role="status" aria-live="polite"></p>
@@ -365,6 +366,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_caixa.js' %}?v=10"></script>
+<script src="{% static 'js/dashboard_caixa.js' %}?v=11"></script>
 <script src="{% static 'js/temp_cards.js' %}?v=2"></script>
 {% endblock %}

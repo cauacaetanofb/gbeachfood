@@ -115,7 +115,7 @@ class PhysicalCardPurchaseTests(TestCase):
         self.assertEqual(self.client.get('/api/cards/balance/', {'qr_data': 'invalid'}).status_code, 400)
 
     def test_invalid_card_price_and_method_do_not_write(self):
-        for changes in ({'qr_data': ''}, {'qr_data': 'bad'}, {'qr_data': None}, {'metodo': 'saldo'},
+        for changes in ({'qr_data': ''}, {'qr_data': 'bad'}, {'qr_data': None},
                         {'metodo': 'outro'}, {'valor': '0.01'}, {'valor_cartao': '100'},
                         {'request_id': ''}, {'request_id': None}, {'request_id': 'invalid'}):
             with self.subTest(changes=changes):
@@ -177,3 +177,105 @@ class PhysicalCardPurchaseTests(TestCase):
         entries = self.client.get('/api/reports/transactions/').json()['transactions']
         self.assertEqual(len(entries), 2)
         self.assertEqual(entries[0]['tipo_label'], 'Venda de cartão físico')
+
+    def test_using_balance_debits_price_once_and_preserves_qr(self):
+        code = self.card.qr_code_data
+        first = self.buy(metodo='saldo')
+        self.assertEqual(first.status_code, 200)
+        self.assertTrue(first.json()['created'])
+        self.assertEqual(first.json()['card']['saldo'], '33.50')
+        self.assertFalse(self.buy(metodo='saldo').json()['created'])
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.saldo, Decimal('33.50'))
+        self.assertEqual(self.card.qr_code_data, code)
+        sale = Transaction.objects.get()
+        self.assertEqual((sale.tipo, sale.metodo, sale.valor), ('cartao', 'saldo', Decimal('2.00')))
+        self.assertEqual(sale.operador, self.cashier)
+        self.assertEqual(Card.objects.count(), 1)
+
+    def test_exact_balance_and_retry_at_zero_do_not_debit_twice(self):
+        self.card.saldo = Decimal('2.00')
+        self.card.save()
+        self.assertTrue(self.buy(metodo='saldo').json()['created'])
+        retried = self.buy(metodo='saldo')
+        self.assertEqual(retried.status_code, 200)
+        self.assertFalse(retried.json()['created'])
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.saldo, 0)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_insufficient_balance_does_not_leave_sale_or_reserve_request(self):
+        for balance in ('0.00', '1.99'):
+            self.card.saldo = Decimal(balance)
+            self.card.save()
+            response = self.buy(metodo='saldo')
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('Saldo insuficiente', response.json()['error'])
+            self.card.refresh_from_db()
+            self.assertEqual(self.card.saldo, Decimal(balance))
+            self.assertFalse(Transaction.objects.exists())
+        self.card.saldo = Decimal('2.00')
+        self.card.save()
+        self.assertTrue(self.buy(metodo='saldo').json()['created'])
+
+    def test_replacements_using_balance_stop_when_it_is_exhausted(self):
+        self.card.saldo = Decimal('6.00')
+        self.card.save()
+        for expected in ('4.00', '2.00', '0.00'):
+            response = self.buy(metodo='saldo', request_id=str(uuid4()))
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['card']['saldo'], expected)
+        self.assertEqual(self.buy(metodo='saldo', request_id=str(uuid4())).status_code, 400)
+        self.assertEqual(Transaction.objects.filter(tipo='cartao', metodo='saldo').count(), 3)
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.saldo, 0)
+
+    def test_sale_balance_write_and_response_failures_roll_back_both_records(self):
+        for target in ('cards.views.Transaction.objects.get_or_create', 'cards.views.Card.save', 'cards.views.JsonResponse'):
+            with self.subTest(target=target):
+                with patch(target, side_effect=RuntimeError('simulated failure')):
+                    with self.assertRaises(RuntimeError):
+                        self.buy(metodo='saldo')
+                self.card.refresh_from_db()
+                self.assertEqual(self.card.saldo, Decimal('35.50'))
+                self.assertFalse(Transaction.objects.exists())
+        self.assertTrue(self.buy(metodo='saldo').json()['created'])
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.saldo, Decimal('33.50'))
+
+    def test_using_balance_does_not_enable_self_funded_recharges(self):
+        for route in ('add', 'remove'):
+            self.assertEqual(self.client.post(f'/api/cards/balance/{route}/', {
+                'qr_data': str(self.card.qr_code_data), 'valor': '2.00', 'metodo': 'saldo',
+            }, content_type='application/json').status_code, 400)
+        self.assertEqual(self.client.post('/api/cards/temp/create/', {
+            'request_id': str(uuid4()), 'nome': 'Novo', 'valor': '50.00', 'metodo': 'saldo',
+        }, content_type='application/json').status_code, 400)
+        self.assertFalse(Transaction.objects.exists())
+
+    def test_reports_count_balance_purchase_as_sale_without_new_cash_receipt(self):
+        Transaction.objects.create(card=self.card, tipo='deposito', valor=10, metodo='dinheiro', origem='caixa', operador=self.cashier)
+        self.card.saldo = Decimal('10.00')
+        self.card.save()
+        self.buy(metodo='saldo')
+        self.buy(metodo='saldo')
+        self.buy(request_id=str(uuid4()))
+        daily = self.client.get('/api/reports/daily/').json()
+        self.assertEqual(daily['vendas_cartoes']['count'], 2)
+        self.assertEqual(Decimal(daily['vendas_cartoes']['total']), 4)
+        self.assertEqual(Decimal(daily['vendas_cartoes']['total_saldo']), 2)
+        self.assertEqual(Decimal(daily['total_depositos']), 10)
+        self.assertEqual(len(daily['por_metodo']), 1)
+        self.assertEqual(daily['por_metodo'][0]['metodo'], 'Dinheiro')
+        self.assertEqual(Decimal(daily['por_metodo'][0]['total']), 12)
+        admin = User.objects.create_user(username='balance-sale-report-admin', user_type='admin')
+        self.client.force_login(admin)
+        report = self.client.get('/api/reports/sales/').json()
+        self.assertEqual(Decimal(report['total_pagamentos_saldo']), 2)
+        self.assertEqual(report['total_pagamentos_count'], 1)
+        self.assertEqual(Decimal(report['vendas_cartoes']['total']), 4)
+        methods = {row['metodo']: Decimal(row['total']) for row in report['vendas_cartoes']['por_metodo']}
+        self.assertEqual(methods, {'Dinheiro': Decimal('2.00'), 'Saldo do Cartão': Decimal('2.00')})
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.saldo, Decimal('8.00'))
+        self.assertEqual(Transaction.objects.count(), 3)

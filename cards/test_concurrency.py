@@ -75,3 +75,23 @@ class ConcurrentBalanceTests(TransactionTestCase):
         self.assertEqual(Transaction.objects.filter(card=card, tipo='cartao').count(), 2)
         card.refresh_from_db()
         self.assertEqual(card.saldo, Decimal('35.50'))
+
+    def test_simultaneous_balance_purchase_retries_debit_once(self):
+        card = Card.objects.create(is_temporary=True, nome='Etiqueta', saldo=Decimal('2.00'))
+        statuses = self.parallel('/api/cards/physical/purchase/', {
+            'qr_data': str(card.qr_code_data), 'metodo': 'saldo', 'request_id': str(uuid4()),
+        }, authenticated=True)
+        self.assertEqual(statuses, [200, 200])
+        card.refresh_from_db()
+        self.assertEqual(card.saldo, 0)
+        self.assertEqual(Transaction.objects.filter(card=card, tipo='cartao').count(), 1)
+
+    def test_simultaneous_balance_purchases_cannot_overdraw(self):
+        card = Card.objects.create(is_temporary=True, nome='Etiqueta', saldo=Decimal('3.00'))
+        statuses = self.parallel('/api/cards/physical/purchase/', lambda: {
+            'qr_data': str(card.qr_code_data), 'metodo': 'saldo', 'request_id': str(uuid4()),
+        }, authenticated=True)
+        self.assertEqual(statuses, [200, 400])
+        card.refresh_from_db()
+        self.assertEqual(card.saldo, Decimal('1.00'))
+        self.assertEqual(Transaction.objects.filter(card=card, tipo='cartao').count(), 1)
