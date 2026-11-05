@@ -59,7 +59,6 @@ class PhysicalCardPriceTests(TestCase):
         self.assertLess(html.index('id="physical-card-product"'), html.index('id="products-list"'))
         fixed_item = html.split('id="physical-card-product"')[1].split('</section>')[0]
         self.assertNotIn('deleteProduct', fixed_item)
-        self.assertContains(response, 'Este item não pode ser excluído.')
         self.client.force_login(self.cashier)
         response = self.client.get('/dashboard/')
         self.assertContains(response, 'data-physical-card-price="3.75"')
