@@ -36,12 +36,16 @@ as verificações realizadas e o que falta fazer.
 ### Decisões e pendências conhecidas
 
 Contexto revisado em **11/11/2026** a partir do código local e das decisões do
-responsável. A seção de hospedagem registra também a configuração econômica
-aplicada e verificada na nuvem nessa data.
+responsável. A seção de hospedagem registra também a configuração econômica,
+a publicação solicitada e as verificações realizadas na nuvem nessa data.
 
-- O desenvolvimento está sendo feito localmente. O perfil econômico foi configurado
-  no Cloud Run e no Cloud SQL; o banco já gera cobrança. A publicação pública e as
-  migrations do banco novo continuam pendentes e não devem ocorrer automaticamente.
+- O aplicativo foi publicado em `https://gbeachfood.web.app` com o perfil econômico,
+  migrations aplicadas e administrador configurado. O desenvolvimento também pode
+  continuar localmente; novas publicações não devem ocorrer automaticamente.
+- Recargas online estão pausadas: o responsável informou que ainda vai conectar
+  a conta Asaas correta. A chave atual foi retirada do serviço Cloud Run e
+  `ASAAS_PAYMENTS_ENABLED=False` foi configurado. Recargas presenciais, saldo e
+  pedidos continuam disponíveis. A recuperação de senha por e-mail aguarda SMTP.
 - Cartões de visitantes são emitidos como etiquetas pelo caixa. O cartão físico
   em branco é opcional, pode ser comprado novamente e tem preço definido pelo admin.
 - A área do cartão físico no admin deve permanecer compacta: título, preço e
@@ -236,6 +240,7 @@ pip install -r requirements.txt
 Crie um arquivo `.env` na raiz do projeto:
 ```env
 SECRET_KEY=sua-chave-secreta-aqui
+ASAAS_PAYMENTS_ENABLED=False
 ASAAS_API_KEY=sua-chave-asaas
 ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
 ASAAS_WEBHOOK_TOKEN=seu-token-webhook
@@ -306,10 +311,11 @@ conexão SQL e permissões existentes são preservados. O banco é configurado
 separadamente. Qualquer falha interrompe os passos seguintes, sem
 reverter migrations já concluídas.
 
-A publicação pública está em pausa por decisão do responsável. Em 11/11/2026, a
-configuração do cenário econômico foi solicitada e aplicada: o PostgreSQL novo
-está disponível e já gera cobrança, mas ainda não recebeu migrations. Antes de
-publicar, confira o estado real dos recursos e as pendências descritas abaixo.
+Em **11/11/2026**, após a configuração econômica, o responsável solicitou colocar
+o aplicativo no ar. O código atual foi publicado, as migrations foram aplicadas
+no PostgreSQL novo e o administrador foi criado. O endereço público é
+**https://gbeachfood.web.app**. A infraestrutura gera cobrança; confira o estado
+real dos recursos e as pendências abaixo antes de novas alterações.
 
 Para publicar somente a configuração do Hosting, depois de validar o backend:
 
@@ -333,13 +339,14 @@ dispensou backup e pediu instruções para excluir o banco. A consulta de 11/11/
 antes da configuração econômica, retornou nenhuma instância Cloud SQL no projeto.
 O banco econômico descrito abaixo é novo; não foi uma redução do disco antigo.
 
-A solicitação de 11/11/2026 autorizou configurar o cenário econômico e seus
-alertas. A publicação pública, a execução de migrations e a importação de dados
-não foram realizadas nesta configuração. O pagamento de uma fatura, por si só,
-não solicita publicação. Este registro é uma fotografia da configuração verificada,
-não uma auditoria de faturas nem garantia do estado futuro dos recursos.
+A solicitação inicial de 11/11/2026 autorizou configurar o cenário econômico e
+seus alertas. Em seguida, uma nova solicitação autorizou a publicação pública,
+as migrations e a preparação do administrador. Não houve importação dos dados
+locais. O pagamento de uma fatura, por si só, não solicita publicação. Este registro
+é uma fotografia da configuração verificada, não uma auditoria de faturas nem
+garantia do estado futuro dos recursos.
 
-Quando a retomada for solicitada, confira o banco disponível, os dados que devem
+Em futuras retomadas, confira o banco disponível, os dados que devem
 ser mantidos, a configuração aprovada, os segredos, a conexão do serviço e do job
 `gbeachfood-migrate` e as permissões de acesso. Só então execute migrations e
 publique. O `deploy.ps1` aplica o perfil econômico de escala e preserva IAM; sozinho ele não recria recursos nem
@@ -390,14 +397,24 @@ Estado verificado em **11/11/2026**, após a configuração:
 
 - Faturamento habilitado. Instância SQL `gbeachfood` em estado `RUNNABLE`, com
   o perfil da tabela, proteção contra exclusão e backups às 06h UTC (03h em
-  São Paulo). Banco `gbeachfood` e usuário `gbeachfood_app` criados; nenhuma
-  migration, importação de dados ou restauração foi executada.
+  São Paulo). Banco `gbeachfood` e usuário `gbeachfood_app` criados. As migrations
+  foram aplicadas pelo job `gbeachfood-migrate`; não houve importação ou restauração.
 - Serviço `gbeachfood` e job `gbeachfood-migrate` configurados com os limites
   acima. Ambos mantêm a mesma conexão SQL e referência de senha no Secret Manager;
   as referências e a permissão `Cloud SQL Client` foram verificadas sem exibir
-  credenciais. A conexão pelo Django ainda será validada na publicação.
-- Acesso público do Cloud Run não foi liberado. Firebase Hosting não foi publicado.
-  A imagem da aplicação não foi substituída nessa configuração.
+  credenciais. Migrations, criação do administrador e login confirmaram a conexão
+  efetiva do Django com o banco.
+- Firebase Hosting publicado e Cloud Run com acesso público habilitado por
+  `--no-invoker-iam-check`. O login e as permissões continuam sendo verificados
+  pelo Django. O deploy preserva essa configuração; não a habilita por conta própria.
+- Imagem publicada: `app:deploy-20261111-173344-244`, no repositório
+  `southamerica-east1-docker.pkg.dev/gbeachfood/gbeachfood`.
+  Revisão do serviço: `gbeachfood-00015-pn6`. Build e job de migrations concluíram
+  com sucesso antes da atualização do serviço.
+- Administrador `admin` criado pelo job existente `gbeachfood-create-admin`, usando
+  a imagem da publicação inicial e a senha previamente guardada no Secret Manager. O job usa 1 CPU,
+  512 MiB, uma tarefa, nenhuma repetição automática e timeout de 300 segundos.
+  Não há agendamento de execução desse job.
 - Orçamento mensal do projeto: **R$ 420**, com alertas em R$ 210, R$ 336 e R$ 420,
   além de alerta quando a previsão mensal atingir R$ 420. Esse orçamento substitui
   o antigo aviso de R$ 25 do mesmo projeto; os de outros projetos foram preservados.
@@ -408,10 +425,43 @@ Estado verificado em **11/11/2026**, após a configuração:
   dos créditos e não acionam Pub/Sub ou desligamento. A entrega de notificações
   não foi testada por envio real. Alertas podem atrasar e não impedem excedentes.
 
-Antes do uso real, publicar o código atual com migrations, configurar o
-administrador, validar Asaas em sandbox e testar a carga prevista. O banco começa
-vazio, e o perfil de CPU compartilhada só deve ser mantido se esses testes
-confirmarem desempenho suficiente.
+Validação da publicação:
+
+- Suíte Django isolada: 138 testes, com 6 testes de concorrência específicos de
+  PostgreSQL pulados no SQLite; verificação de migrations sem alterações pendentes.
+  Testes JavaScript de login, recarga e PWA e o teste simulado do deploy aprovados.
+- Pelo endereço público: login de `admin`, painel administrativo, Django Admin,
+  cookie seguro `__session`, rejeição de POST sem CSRF, arquivos estáticos,
+  manifest, service worker e logout verificados.
+- Na publicação inicial, uma rodada de 50 consultas paralelas de leitura a `/api/profile/` retornou
+  50 respostas HTTP 200: mediana de 0,91 s, percentil 95 de 3,56 s e máximo de
+  5,46 s. Essa checagem pontual não substitui teste sustentado de pedidos e recargas
+  concorrentes, nem garante a capacidade em férias.
+- Webhook sem token rejeitado com HTTP 401. Um evento de verificação não financeiro,
+  ignorado pelo código, retornou HTTP 200 com o token correto. Nenhum pedido,
+  cliente, crédito, cobrança ou e-mail foi criado como teste na nuvem.
+
+Após a publicação inicial, o responsável informou que a conta Asaas configurada
+não é a correta e adiou essa conexão. **Novas recargas online estão desativadas**:
+`ASAAS_PAYMENTS_ENABLED=False`, e a referência `ASAAS_API_KEY` foi retirada do
+serviço Cloud Run, preservando o segredo armazenado. O app orienta o cliente a
+recarregar no caixa; a API recusa novas cobranças e não oferece links de recargas
+pendentes durante a pausa. Registros de recargas e consultas de status são preservados.
+
+O webhook autenticado continua processando confirmações de recargas já existentes,
+inclusive estornos e contestações. A configuração anterior do webhook na conta
+Asaas não foi apagada: URL `https://gbeachfood.web.app/api/asaas/webhook/`, com os
+oito eventos tratados pelo aplicativo. Cobranças sem uma recarga correspondente
+no banco são ignoradas. Nenhuma cobrança real foi gerada na validação. Os testes
+simulados confirmam o bloqueio de PIX/crédito e reenvios sem chamadas ao provedor,
+a preservação de pendências, do webhook e das recargas presenciais.
+
+Pendências: conectar e validar a conta Asaas correta antes de habilitar recargas
+online; configurar o envio de e-mail para recuperação de senha (não havia
+credenciais SMTP no serviço, no Secret Manager ou no ambiente local), cadastrar
+produtos e funcionários conforme a operação e validar fluxos de pagamento e carga
+representativos antes do uso operacional amplo. A senha do administrador foi
+preservada; não depender de recuperação por e-mail enquanto SMTP estiver pendente.
 
 Referências: [preços Cloud SQL](https://cloud.google.com/sql/pricing),
 [preços Cloud Run](https://cloud.google.com/run/pricing),
@@ -476,6 +526,7 @@ conta de serviço com `Cloud SQL Client` e acesso somente aos segredos necessár
 | `EMAIL_HOST_PASSWORD` | Senha de app Gmail, referenciada pelo Secret Manager |
 | `DEFAULT_FROM_EMAIL` | Remetente, por exemplo `GBeachFood <sua-conta@gmail.com>` |
 | `ASAAS_API_KEY` | Chave Asaas no Secret Manager |
+| `ASAAS_PAYMENTS_ENABLED` | `False` por padrão; `True` permite recargas online somente com chave configurada |
 | `ASAAS_BASE_URL` | URL sandbox ou produção correspondente à chave Asaas |
 | `ASAAS_WEBHOOK_TOKEN` | Token do webhook no Secret Manager; o mesmo cadastrado no Asaas |
 
@@ -532,6 +583,14 @@ O sistema utiliza a [API do Asaas](https://docs.asaas.com) para processar recarg
 
 ### Configuração
 
+- **Pausa das recargas online**: `ASAAS_PAYMENTS_ENABLED=False` (padrão). O cliente
+  recebe orientação para recarregar no caixa. A API bloqueia novas cobranças antes
+  de chamar o Asaas e não expõe links pendentes; saldo, pedidos, recargas presenciais,
+  status e webhook autenticado continuam funcionando.
+- **Ativação**: somente após conectar e validar a conta correta, configurar a chave,
+  o ambiente e o webhook correspondentes e definir `ASAAS_PAYMENTS_ENABLED=True`.
+  Ao trocar de conta, conferir os clientes Asaas e as recargas pendentes existentes:
+  identificadores e links da conta anterior não devem ser reutilizados na nova.
 - **Sandbox** (testes): `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3`
 - **Produção**: `ASAAS_BASE_URL=https://api.asaas.com/v3`
 

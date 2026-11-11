@@ -37,6 +37,7 @@ class BalancePermissionsTests(TestCase):
         self.assertEqual(self.card.saldo, 0)
         self.assertFalse(Transaction.objects.exists())
 
+    @override_settings(ASAAS_PAYMENTS_ENABLED=False)
     def test_cashier_and_admin_can_credit_cards(self):
         for role in ('caixa', 'admin'):
             user = User.objects.create_user(username=role, user_type=role)
@@ -57,7 +58,7 @@ class BalancePermissionsTests(TestCase):
         self.assertFalse(Transaction.objects.exists())
 
 
-@override_settings(ASAAS_WEBHOOK_TOKEN='test-webhook-token')
+@override_settings(ASAAS_WEBHOOK_TOKEN='test-webhook-token', ASAAS_PAYMENTS_ENABLED=False)
 class WebhookTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='pix-user', user_type='cliente')

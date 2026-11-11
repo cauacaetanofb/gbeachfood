@@ -588,6 +588,11 @@ def api_asaas_create_payment(request):
     """Cria PIX ou fatura de crédito à vista; nunca recebe dados do cartão."""
     if request.user.user_type != 'cliente':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
+    if not django_settings.ASAAS_PAYMENTS_ENABLED or not django_settings.ASAAS_API_KEY.strip():
+        return JsonResponse({
+            'error': 'Recargas online temporariamente indisponíveis. Procure o caixa para adicionar saldo.',
+            'code': 'payments_disabled',
+        }, status=503)
     data = request.json_data
     if set(data) - {'valor', 'metodo'}:
         raise InvalidInput('Informe apenas o valor e a forma de pagamento. O cartão é informado no Asaas.')
@@ -597,9 +602,6 @@ def api_asaas_create_payment(request):
     valor = money(data.get('valor'), minimum=D('5.00') if metodo == 'credito' else D('1.00'))
     card, _ = Card.objects.get_or_create(user=request.user)
     _validate_credit(card, valor)
-    if not django_settings.ASAAS_API_KEY.strip():
-        return JsonResponse({'error': 'Pagamentos temporariamente indisponíveis.'}, status=503)
-
     try:
         customer_id = _get_or_create_asaas_customer(request.user)
         payment_payload = {
@@ -662,6 +664,8 @@ def api_asaas_create_payment(request):
 def api_asaas_pending_payments(request):
     if request.user.user_type != 'cliente':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
+    if not django_settings.ASAAS_PAYMENTS_ENABLED or not django_settings.ASAAS_API_KEY.strip():
+        return JsonResponse({'recargas': []})
     recargas = Recarga.objects.filter(user=request.user, card__user=request.user,
         card__bloqueado=False, metodo='credito', status='pendente').exclude(invoice_url='')[:10]
     return JsonResponse({'recargas': [{'id': r.pk, 'valor': str(r.valor),

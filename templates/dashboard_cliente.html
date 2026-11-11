@@ -19,7 +19,7 @@
 </div>
 
 <section class="dashboard-welcome" aria-labelledby="page-title">
-    <div><span class="eyebrow">MEU CARTÃO</span><h1 id="page-title">Abasteça seu cartão sem passar no caixa.</h1></div>
+    <div><span class="eyebrow">MEU CARTÃO</span><h1 id="page-title">{% if online_payments_enabled %}Abasteça seu cartão sem passar no caixa.{% else %}Seu cartão e saldo em um só lugar.{% endif %}</h1></div>
     <span class="welcome-note"><span aria-hidden="true"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#sun"></use></svg></span> Tudo pronto para aproveitar</span>
 </section>
 
@@ -62,6 +62,7 @@
 
 <!-- Tab: Recarga PIX ou crédito -->
 <div id="tab-adicionar" class="tab-content">
+    {% if online_payments_enabled %}
     <div id="credit-pending" class="surface-card" hidden>
         <h3>Recargas por cartão em andamento</h3>
         <p class="payment-help">Se você já iniciou uma recarga, continue por aqui.</p>
@@ -139,9 +140,15 @@
         <div style="color:var(--success);font-size:1.5rem;font-weight:800;margin-bottom:1rem;" id="pix-valor-confirmado">+ R$ 0,00</div>
         <button class="btn-primary" onclick="voltarPixInicio()" style="width:100%;">OK</button>
     </div>
+    {% else %}
+    <div class="surface-card" role="status">
+        <h3>Recarga no caixa</h3>
+        <p class="payment-help">Recargas online temporariamente indisponíveis. Procure o caixa para adicionar saldo.</p>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_cliente.js' %}?v=7"></script>
+<script src="{% static 'js/dashboard_cliente.js' %}?v=8"></script>
 {% endblock %}

@@ -78,6 +78,9 @@ def dashboard_view(request):
 
     template = template_map.get(view_as, 'login.html')
     context = {'user': user, 'is_admin': user.user_type == 'admin', 'active_page': view_as}
+    if view_as == 'cliente':
+        context['online_payments_enabled'] = (
+            settings.ASAAS_PAYMENTS_ENABLED and bool(settings.ASAAS_API_KEY.strip()))
     if view_as in ('admin', 'caixa'):
         context['physical_card_price'] = PhysicalCardPrice.current()
     return render(request, template, context)

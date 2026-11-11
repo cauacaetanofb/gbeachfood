@@ -84,5 +84,26 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
     await context.gerarRecarga();
     assert.equal(get('pix-step-2').style.display, 'block');
     assert.equal(get('pix-copia-cola').value, 'code');
-    console.log('OK: crédito, PIX, confirmação por webhook, revisão, retomada, URLs e respostas antigas.');
+    const pausedCalls = [];
+    const pausedNodes = new Map();
+    const cardIds = new Set(['qr-loading', 'my-qr-img', 'my-card-status', 'my-qr-label', 'my-saldo']);
+    const pausedContext = vm.createContext({
+        URL, Number,
+        document: { getElementById(id) {
+            if (!cardIds.has(id)) return null;
+            if (!pausedNodes.has(id)) pausedNodes.set(id, element());
+            return pausedNodes.get(id);
+        } },
+        showToast(message) { throw new Error(message); },
+        async apiFetch(url) {
+            pausedCalls.push(url);
+            if (url !== '/api/cards/my/') throw new Error('Pagamento acessado durante a pausa');
+            return { card: { saldo: '20.00', qr_code_image: 'image', qr_code_data: 'uuid' } };
+        }
+    });
+    new vm.Script(fs.readFileSync(path.join(__dirname, '../static/js/dashboard_cliente.js'), 'utf8')).runInContext(pausedContext);
+    await flush();
+    assert.deepEqual(pausedCalls, ['/api/cards/my/']);
+    assert.equal(pausedNodes.get('my-saldo').textContent, 'R$ 20.00');
+    console.log('OK: crédito, PIX, confirmação por webhook, revisão, retomada, URLs, respostas antigas e pausa online.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

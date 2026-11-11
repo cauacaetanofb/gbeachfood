@@ -204,5 +204,7 @@ async function loadExtrato() {
 
 // Init
 loadMyCard();
-carregarRecargasPendentes();
-atualizarMetodoRecarga();
+if (document.getElementById('add-metodo')) {
+    carregarRecargasPendentes();
+    atualizarMetodoRecarga();
+}

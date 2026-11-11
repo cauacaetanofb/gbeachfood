@@ -27,9 +27,10 @@ pedidos e pagamentos Asaas. O pacote Python de configuração continua sendo `gf
   `git commit -m "mensagem correspondente à alteração"` e `git push origin HEAD`,
   além dos comandos de execução local e deploy abaixo. Não proponha `--force`
   como procedimento normal e não execute esses comandos pelo usuário.
-- A hospedagem foi colocada em pausa por solicitação do responsável. Não execute
-  deploy, crie recursos pagos ou reative serviços sem uma nova solicitação nesse
-  sentido. Autorizações antigas para migração não significam autorização atual.
+- O estado atual da hospedagem está registrado no README. Não execute deploy,
+  crie recursos pagos, reative serviços pausados ou aumente a capacidade sem uma
+  solicitação nesse sentido. Preserve os limites econômicos aprovados.
+  Autorizações antigas para migração não significam autorização atual.
 - Não publique nem imprima conteúdo de `.env`, chaves, senhas ou dados de clientes.
   O usuário não quer um arquivo `.env.example`.
 - `/docs/` permanece ignorado por preferência do usuário. Instruções compartilhadas

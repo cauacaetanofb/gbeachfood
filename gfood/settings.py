@@ -189,6 +189,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 ASAAS_API_KEY = os.getenv('ASAAS_API_KEY', '')
+ASAAS_PAYMENTS_ENABLED = os.getenv('ASAAS_PAYMENTS_ENABLED', 'False').lower() in ('true', '1', 'yes')
 ASAAS_BASE_URL = os.getenv('ASAAS_BASE_URL', 'https://api.asaas.com/v3')
 ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN', '')
 
