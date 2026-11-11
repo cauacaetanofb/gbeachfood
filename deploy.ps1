@@ -60,13 +60,19 @@ try {
         # O job usa a mesma imagem que sera publicada, preservando conexao e segredos.
         Invoke-DeployCommand $cloudTool @('run', 'jobs', 'update', 'gbeachfood-migrate',
             "--image=$image", '--command=python', '--args=manage.py,migrate,--noinput',
+            '--cpu=1', '--memory=512Mi', '--tasks=1', '--parallelism=1',
+            '--max-retries=0', '--task-timeout=300s',
             "--region=$region", "--project=$projectId", '--quiet')
         Invoke-DeployCommand $cloudTool @('run', 'jobs', 'execute', 'gbeachfood-migrate',
             "--region=$region", "--project=$projectId", '--wait', '--quiet')
 
-        # Atualizar so a imagem preserva hosts, variaveis, segredos e permissoes existentes.
+        # Perfil economico aprovado: cobrar por requisicao e reduzir a zero sem uso.
+        # Limites de escala nao sao um teto financeiro. Hosts, segredos e IAM sao preservados.
         Invoke-DeployCommand $cloudTool @('run', 'services', 'update', 'gbeachfood',
-            "--image=$image", "--region=$region", "--project=$projectId", '--quiet')
+            "--image=$image", '--scaling=auto', '--min=0', '--max=2',
+            '--min-instances=0', '--max-instances=2', '--concurrency=8',
+            '--cpu=1', '--memory=512Mi', '--cpu-throttling', '--execution-environment=gen2',
+            "--region=$region", "--project=$projectId", '--quiet')
     }
     Invoke-DeployCommand $firebaseTool @('--yes', 'firebase-tools', 'deploy', '--only=hosting',
         "--project=$projectId", '--non-interactive')

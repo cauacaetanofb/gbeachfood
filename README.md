@@ -36,10 +36,12 @@ as verificações realizadas e o que falta fazer.
 ### Decisões e pendências conhecidas
 
 Contexto revisado em **11/11/2026** a partir do código local e das decisões do
-responsável; o estado dos serviços externos não foi consultado nesta revisão.
+responsável. A seção de hospedagem registra também a configuração econômica
+aplicada e verificada na nuvem nessa data.
 
-- O desenvolvimento está sendo feito localmente. A configuração Firebase/Cloud Run
-  permanece no código; a hospedagem não deve ser reativada automaticamente.
+- O desenvolvimento está sendo feito localmente. O perfil econômico foi configurado
+  no Cloud Run e no Cloud SQL; o banco já gera cobrança. A publicação pública e as
+  migrations do banco novo continuam pendentes e não devem ocorrer automaticamente.
 - Cartões de visitantes são emitidos como etiquetas pelo caixa. O cartão físico
   em branco é opcional, pode ser comprado novamente e tem preço definido pelo admin.
 - A área do cartão físico no admin deve permanecer compacta: título, preço e
@@ -298,15 +300,16 @@ ZIP manual ou comandos Git. O `.env` e o banco local não são enviados.
 
 O script constrói uma imagem, atualiza o job `gbeachfood-migrate`, executa as
 migrations e só então atualiza o serviço com a mesma imagem e publica o Hosting.
-O acesso ao Firebase é verificado antes do build. Variáveis, segredos,
-conexão SQL e permissões existentes são preservados. Novas configurações precisam
-ser aplicadas separadamente. Qualquer falha interrompe os passos seguintes, sem
+O acesso ao Firebase é verificado antes do build. O perfil econômico de processamento
+e escala descrito abaixo é reaplicado ao serviço e ao job. Variáveis, segredos,
+conexão SQL e permissões existentes são preservados. O banco é configurado
+separadamente. Qualquer falha interrompe os passos seguintes, sem
 reverter migrations já concluídas.
 
-A hospedagem está em pausa por decisão do responsável. O deploy precisa de um
-PostgreSQL disponível para executar migrations; manter os arquivos no repositório
-não garante que o banco ou o serviço existam ou estejam ativos. Antes de uma
-retomada solicitada, verifique o estado real dos recursos e sua configuração.
+A publicação pública está em pausa por decisão do responsável. Em 11/11/2026, a
+configuração do cenário econômico foi solicitada e aplicada: o PostgreSQL novo
+está disponível e já gera cobrança, mas ainda não recebeu migrations. Antes de
+publicar, confira o estado real dos recursos e as pendências descritas abaixo.
 
 Para publicar somente a configuração do Hosting, depois de validar o backend:
 
@@ -326,20 +329,93 @@ instância menor estava bloqueada pelo faturamento. Esse registro **não comprov
 o estado atual da nuvem**.
 
 Posteriormente, o responsável informou que os dados eram apenas de teste,
-dispensou backup e pediu instruções para excluir o banco. A conclusão da exclusão
-não foi confirmada nesta documentação. Não presuma que a instância antiga ainda
-exista nem que seja necessário retomar o plano anterior de migração.
+dispensou backup e pediu instruções para excluir o banco. A consulta de 11/11/2026,
+antes da configuração econômica, retornou nenhuma instância Cloud SQL no projeto.
+O banco econômico descrito abaixo é novo; não foi uma redução do disco antigo.
 
-A orientação vigente é continuar localmente e não executar deploy, jobs ou
-reativar serviços até uma nova solicitação. O pagamento de uma fatura, por si só,
-não é uma solicitação de retomada. O custo e o estado atual dos recursos precisam
-ser verificados no provedor; este README não é uma auditoria de faturamento.
+A solicitação de 11/11/2026 autorizou configurar o cenário econômico e seus
+alertas. A publicação pública, a execução de migrations e a importação de dados
+não foram realizadas nesta configuração. O pagamento de uma fatura, por si só,
+não solicita publicação. Este registro é uma fotografia da configuração verificada,
+não uma auditoria de faturas nem garantia do estado futuro dos recursos.
 
 Quando a retomada for solicitada, confira o banco disponível, os dados que devem
 ser mantidos, a configuração aprovada, os segredos, a conexão do serviço e do job
 `gbeachfood-migrate` e as permissões de acesso. Só então execute migrations e
-publique. O `deploy.ps1` preserva escala e IAM; sozinho ele não recria recursos nem
+publique. O `deploy.ps1` aplica o perfil econômico de escala e preserva IAM; sozinho ele não recria recursos nem
 restaura uma permissão pública que tenha sido removida.
+
+### Perfil econômico para fins de semana
+
+Cenário escolhido pelo responsável em **11/11/2026**: pico previsto de cerca de
+50 pessoas simultâneas, fins de semana e feriados das 9h às 17h, com uso diário e
+maior movimento nas férias escolares. A capacidade precisa ser validada com carga
+representativa de pedidos, recargas e relatórios antes da operação real.
+
+| Recurso | Configuração do cenário |
+|---|---|
+| Região | `southamerica-east1` (São Paulo) |
+| Cloud Run | 1 vCPU, 512 MiB, concorrência 8, execução gen2 |
+| Cobrança e escala do serviço | Por requisição (`--cpu-throttling`), escala automática, mínimo 0 e máximo 2 no serviço e na revisão |
+| Job de migrations | 1 vCPU, 512 MiB, 1 tarefa, paralelismo 1, sem repetição automática, timeout de 300 segundos |
+| Cloud SQL | PostgreSQL 17, Enterprise, `db-g1-small` (CPU compartilhada e 1,7 GiB de RAM), uma zona, sem réplica |
+| Disco SQL | SSD inicial de 10 GiB; crescimento automático limitado a 20 GiB |
+| Backups SQL | Diários, retenção de 7 backups, recuperação para um ponto no tempo com 3 dias de logs |
+| Acesso ao banco | Conector Cloud SQL, conexões criptografadas, sem redes externas autorizadas |
+
+O `deploy.ps1` aplica apenas a configuração de processamento do serviço e do job,
+além das etapas usuais de publicação. Ele não cria nem redimensiona o Cloud SQL.
+`-Plan` mostra os parâmetros sem executar comandos externos; `-HostingOnly` não
+altera o perfil de processamento.
+
+Não há desligamento agendado. O Cloud Run pode reduzir a zero quando ocioso e
+iniciar novamente no próximo acesso; o primeiro acesso pode demorar mais. O banco
+fica disponível continuamente, inclusive para confirmações de pagamento fora do
+horário do parque. Feriados e férias não dependem de um agendamento de ativação.
+
+A previsão inicial é **R$ 280–420/mês** para operação em fins de semana, usando
+US$ 1 = R$ 5,50 apenas como conversão ilustrativa. O processamento do banco custa
+cerca de US$ 38,33/mês (730 horas); disco, backups, Cloud Run, tráfego e serviços
+auxiliares são adicionais. Férias e aumento de uso exigem nova previsão. Valores
+não incluem tributos, domínio, serviço de e-mail pago ou taxas Asaas.
+
+Essa faixa não é um teto de cobrança. Os limites de instâncias e de disco não
+limitam todos os custos, e o banco pode parar de aceitar gravações se o disco
+atingir o limite. Monitorar espaço livre, conexões, memória, tráfego e faturamento.
+As máquinas SQL compartilhadas não têm SLA. Os alertas da conta são configurados
+separadamente e não são criados pelo deploy. O responsável escolheu **alertas sem
+desligamento automático**; não foi criado um limite de gasto que bloqueie o app.
+
+Estado verificado em **11/11/2026**, após a configuração:
+
+- Faturamento habilitado. Instância SQL `gbeachfood` em estado `RUNNABLE`, com
+  o perfil da tabela, proteção contra exclusão e backups às 06h UTC (03h em
+  São Paulo). Banco `gbeachfood` e usuário `gbeachfood_app` criados; nenhuma
+  migration, importação de dados ou restauração foi executada.
+- Serviço `gbeachfood` e job `gbeachfood-migrate` configurados com os limites
+  acima. Ambos mantêm a mesma conexão SQL e referência de senha no Secret Manager;
+  as referências e a permissão `Cloud SQL Client` foram verificadas sem exibir
+  credenciais. A conexão pelo Django ainda será validada na publicação.
+- Acesso público do Cloud Run não foi liberado. Firebase Hosting não foi publicado.
+  A imagem da aplicação não foi substituída nessa configuração.
+- Orçamento mensal do projeto: **R$ 420**, com alertas em R$ 210, R$ 336 e R$ 420,
+  além de alerta quando a previsão mensal atingir R$ 420. Esse orçamento substitui
+  o antigo aviso de R$ 25 do mesmo projeto; os de outros projetos foram preservados.
+- Orçamento mensal específico de Cloud Run: **R$ 100**, com alertas em R$ 50,
+  R$ 80 e R$ 100, além de previsão mensal de R$ 100. Esse consumo também integra o
+  orçamento total de R$ 420; os valores não devem ser somados.
+- Ambos avisam os destinatários padrão do faturamento, consideram consumo antes
+  dos créditos e não acionam Pub/Sub ou desligamento. A entrega de notificações
+  não foi testada por envio real. Alertas podem atrasar e não impedem excedentes.
+
+Antes do uso real, publicar o código atual com migrations, configurar o
+administrador, validar Asaas em sandbox e testar a carga prevista. O banco começa
+vazio, e o perfil de CPU compartilhada só deve ser mantido se esses testes
+confirmarem desempenho suficiente.
+
+Referências: [preços Cloud SQL](https://cloud.google.com/sql/pricing),
+[preços Cloud Run](https://cloud.google.com/run/pricing),
+[limites de gasto](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps).
 
 ### Sessão e arquivos estáticos
 

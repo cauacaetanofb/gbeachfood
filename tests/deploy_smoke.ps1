@@ -20,8 +20,9 @@ function Assert-DeployTest([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
 }
 try {
-    & $deployScript -Version 'test-local-only' -Plan
+    $planOutput = (& $deployScript -Version 'test-local-only' -Plan 6>&1 | Out-String)
     Assert-DeployTest ($global:deployCalls.Count -eq 0) 'Plan executed a command.'
+    Assert-DeployTest ($planOutput -match "'--max=2'" -and $planOutput -match "'--cpu-throttling'") 'Plan omitted economic settings.'
 
     & $deployScript -Version 'test-local-only'
     Assert-DeployTest ($global:deployCalls.Count -eq 6) 'Unexpected number of commands.'
@@ -36,6 +37,16 @@ try {
         Assert-DeployTest ($sequence[$i] -match 'app:test-local-only') 'Images differ between steps.'
     }
     Assert-DeployTest (-not ($sequence[4] -match 'set-env|set-secrets')) 'Service configuration overwritten.'
+    foreach ($argument in @('--scaling=auto', '--min=0', '--max=2', '--min-instances=0',
+            '--max-instances=2', '--concurrency=8', '--cpu=1', '--memory=512Mi',
+            '--cpu-throttling', '--execution-environment=gen2')) {
+        Assert-DeployTest ($global:deployCalls[4].Arguments -contains $argument) "Missing service cost control: $argument."
+    }
+    foreach ($argument in @('--cpu=1', '--memory=512Mi', '--tasks=1', '--parallelism=1',
+            '--max-retries=0', '--task-timeout=300s')) {
+        Assert-DeployTest ($global:deployCalls[2].Arguments -contains $argument) "Missing migration job cost control: $argument."
+    }
+    Assert-DeployTest (-not (($sequence -join ' ') -match 'sql instances|add-iam-policy-binding|allow-unauthenticated')) 'Deploy changed database infrastructure or public access.'
 
     foreach ($failAt in 1..6) {
         $global:deployCalls.Clear()
@@ -55,7 +66,7 @@ try {
     Assert-DeployTest ($global:deployCalls.Count -eq 2) 'Hosting-only command count incorrect.'
     Assert-DeployTest (@($global:deployCalls | Where-Object { $_.Tool -eq 'gcloud' }).Count -eq 0) 'Hosting-only called Cloud Run.'
 
-    Write-Host 'OK: plan, image consistency, migration ordering, failure stops and working directory.'
+    Write-Host 'OK: plan, economic limits, image consistency, migration ordering, failure stops and working directory.'
 } finally {
     Remove-Item Function:\gcloud.cmd
     Remove-Item Function:\npx.cmd
