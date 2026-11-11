@@ -1,4 +1,4 @@
-# 🍔 GFood — Sistema de Gerenciamento para Restaurante
+# GBeachFood — Sistema de Gerenciamento para Restaurante
 
 <p align="center">
   <strong>Sistema completo de gerenciamento de restaurante com cartão pré-pago e QR Code</strong>
@@ -12,9 +12,50 @@
 
 ---
 
+## Trabalhar no projeto em novos chats
+
+Abra o novo chat do Codex vinculado à pasta deste repositório, a que contém
+`manage.py`. O [AGENTS.md](AGENTS.md) reúne as regras para trabalhar no código,
+os combinados com o responsável e os comandos de validação. Este README descreve
+o funcionamento, a configuração e as decisões do produto. Ambos ficam na raiz
+para serem versionados; `/docs/` continua ignorado.
+
+Use um chat por assunto ou tarefa, por exemplo: “Pagamentos”, “Interface do caixa”
+ou “Relatórios”. Não conte com a transferência automática do histórico de outra
+conversa. Um ponto de partida para cada chat é:
+
+> Leia o AGENTS.md e as seções relevantes do README.md. Neste chat vamos trabalhar
+> em [assunto]. Minha tarefa é [resultado desejado]. Confira o código atual antes
+> de alterar e siga os combinados registrados no projeto.
+
+Ao concluir uma mudança que altere regras ou configuração, atualize a documentação
+correspondente. Evite dois chats editando os mesmos arquivos ao mesmo tempo;
+ao passar uma tarefa adiante, informe o que foi concluído, os arquivos alterados,
+as verificações realizadas e o que falta fazer.
+
+### Decisões e pendências conhecidas
+
+Contexto revisado em **11/11/2026** a partir do código local e das decisões do
+responsável; o estado dos serviços externos não foi consultado nesta revisão.
+
+- O desenvolvimento está sendo feito localmente. A configuração Firebase/Cloud Run
+  permanece no código; a hospedagem não deve ser reativada automaticamente.
+- Cartões de visitantes são emitidos como etiquetas pelo caixa. O cartão físico
+  em branco é opcional, pode ser comprado novamente e tem preço definido pelo admin.
+- A área do cartão físico no admin deve permanecer compacta: título, preço e
+  botão de salvar. O modelo da impressora de etiquetas ainda não foi definido;
+  as medidas continuam ajustáveis na tela de impressão.
+- Asaas oferece PIX e crédito à vista em uma vez. Sandbox ou produção dependem
+  do ambiente configurado, e não da pasta ou do computador em que o app roda.
+- Emissão de nota fiscal ainda não está implementada. O responsável informou
+  empresa no ES e regime Simples Nacional; os dados fiscais dos produtos ainda
+  precisam ser definidos e validados antes de implementar essa integração.
+
+---
+
 ## 📋 Sobre o Projeto
 
-O **GFood** é um sistema web para restaurantes que utiliza um modelo de **cartão pré-pago com QR Code**. Os clientes carregam saldo em seus cartões virtuais e pagam nos balcões do restaurante apresentando o QR Code.
+O **GBeachFood** atende o restaurante do Guriri Beach Acqua Park e utiliza um modelo de **cartão pré-pago com QR Code**. Os clientes cadastrados usam cartão virtual; visitantes sem conta recebem uma etiqueta emitida pelo caixa. Ambos utilizam o QR Code para consumir o saldo no restaurante.
 
 O sistema foi desenvolvido com foco em **uso mobile** (celular), mas funciona perfeitamente em computadores. Cada tipo de usuário possui sua própria interface, e a navegação acontece em uma **página única** (SPA-like) sem recarregamento.
 
@@ -23,7 +64,7 @@ O sistema foi desenvolvido com foco em **uso mobile** (celular), mas funciona pe
 - 🔐 **4 tipos de usuário** com dashboards independentes (Admin, Caixa, Balcão, Cliente)
 - 💳 **Cartão virtual com QR Code** para clientes
 - 📱 **Etiqueta com QR Code** criada e impressa pelo caixa para clientes sem cadastro
-- 💰 **Recarga de saldo** presencial (dinheiro, PIX, cartão) ou via app (PIX Asaas)
+- 💰 **Recarga de saldo** presencial (dinheiro, PIX, cartão) ou via app (PIX e crédito à vista pelo Asaas)
 - 🛒 **Carrinho de pedidos** com débito automático do saldo
 - 📊 **Relatórios de vendas** com filtros por período e método de pagamento
 - 🔍 **Busca por CPF** para localizar cartões
@@ -41,7 +82,8 @@ O sistema foi desenvolvido com foco em **uso mobile** (celular), mas funciona pe
 - Gerencia **usuários staff** (admin, balcão, caixa)
 - Gerencia **clientes** (visualizar, editar, excluir)
 - Acessa **relatórios completos** de vendas e transações
-- Pode visualizar qualquer dashboard via `?as=caixa`, `?as=balcao`, `?as=cliente`
+- Pode acessar os painéis operacionais via `?as=caixa` e `?as=balcao`
+- Define o preço do **cartão físico**, em um item fixado no topo de Produtos
 - Edita seu próprio perfil
 
 ### 🟡 Caixa
@@ -63,7 +105,7 @@ O sistema foi desenvolvido com foco em **uso mobile** (celular), mas funciona pe
 ### 🔵 Cliente
 - Possui **cartão virtual com QR Code**
 - **Consulta saldo** do cartão
-- **Adiciona saldo** via PIX (integração Asaas)
+- **Adiciona saldo** via PIX ou cartão de crédito à vista (integração Asaas)
 - Visualiza **extrato de transações**
 - Pode instalar o app no celular (PWA)
 
@@ -72,7 +114,9 @@ O sistema foi desenvolvido com foco em **uso mobile** (celular), mas funciona pe
 ## 🏗️ Arquitetura do Projeto
 
 ```
-projeto_restaurante/
+gbeachfood/
+├── AGENTS.md               # Instruções compartilhadas entre chats do Codex
+├── README.md               # Funcionamento e configuração do projeto
 ├── gfood/                  # ⚙️ Configuração principal do Django
 │   ├── settings.py         # Configurações (DB, auth, Asaas, etc.)
 │   ├── urls.py             # Roteamento principal
@@ -87,15 +131,15 @@ projeto_restaurante/
 │   └── management/         # Comando create_superuser_auto
 │
 ├── cards/                  # 💳 App de cartões, saldo e transações
-│   ├── models.py           # Card, Transaction, Recarga
-│   ├── views.py            # Saldo, QR Code, recarga, Asaas PIX, bloqueio
+│   ├── models.py           # Card, Transaction, Recarga, CardIssuance
+│   ├── views.py            # Saldo, etiquetas, cartão físico, recargas Asaas, bloqueio
 │   ├── signals.py          # Cria cartão automaticamente para novos clientes
-│   └── urls.py             # 15 endpoints de API
+│   └── urls.py             # Rotas da API de cartões e da impressão
 │
 ├── products/               # 🍕 App de produtos e categorias
-│   ├── models.py           # Category, Product (com imagem)
+│   ├── models.py           # Category, Product e PhysicalCardPrice
 │   ├── views.py            # CRUD de produtos (admin only)
-│   └── urls.py             # 5 endpoints de API
+│   └── urls.py             # Rotas de produtos e do preço do cartão físico
 │
 ├── orders/                 # 📦 App de pedidos
 │   ├── models.py           # Order, OrderItem
@@ -118,14 +162,16 @@ projeto_restaurante/
 │       └── admin_sidebar.html
 │
 ├── static/                 # 📁 Arquivos estáticos
-│   ├── css/custom.css      # Estilos customizados (dark theme)
+│   ├── css/custom.css      # Identidade visual do parque, responsiva e sem Bulma
 │   ├── js/
 │   │   ├── base.js         # Utilitários (CSRF, fetch, PWA)
 │   │   ├── dashboard_admin.js
 │   │   ├── dashboard_caixa.js
+│   │   ├── temp_cards.js   # Emissão da etiqueta e total com cartão físico opcional
+│   │   ├── card_label.js   # Configuração e impressão da etiqueta
 │   │   ├── dashboard_balcao.js
 │   │   └── dashboard_cliente.js
-│   ├── images/             # Ícones PWA
+│   ├── images/             # Logo, ícones PWA e sprite SVG ui-icons.svg
 │   ├── manifest.json       # PWA manifest
 │   └── sw.js               # Service Worker
 │
@@ -163,8 +209,8 @@ projeto_restaurante/
 
 1. **Clone o repositório**
 ```bash
-git clone https://github.com/cauacaetanofb/projeto_restaurante.git
-cd projeto_restaurante
+git clone https://github.com/cauacaetanofb/gbeachfood.git
+cd gbeachfood
 ```
 
 2. **Crie e ative o ambiente virtual**
@@ -203,10 +249,19 @@ python manage.py migrate
 python manage.py createsuperuser
 ```
 
+Esse comando dá acesso ao admin do Django em `/admin/`. O perfil do painel do
+aplicativo é controlado também por `user_type`, que deve ser `admin` para um
+administrador. O comando `create_superuser_auto` configura ambos, usando
+`DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL` e `DJANGO_SUPERUSER_PASSWORD`
+do ambiente, sem expor a senha no comando ou na documentação.
+
 7. **Inicie o servidor**
-```bash
-python manage.py runserver
+```powershell
+.\venv\Scripts\python.exe manage.py runserver --insecure
 ```
+
+`--insecure` é usado apenas no desenvolvimento local para servir os estáticos
+mesmo com `DEBUG=False`. Em produção, os estáticos são servidos pelo WhiteNoise.
 
 8. **Acesse o sistema**
 - Abra o navegador em: `http://localhost:8000`
@@ -248,9 +303,10 @@ conexão SQL e permissões existentes são preservados. Novas configurações pr
 ser aplicadas separadamente. Qualquer falha interrompe os passos seguintes, sem
 reverter migrations já concluídas.
 
-A instância Cloud SQL foi parada para controle de custos. Não execute um deploy
-real enquanto o banco estiver parado: a etapa de migrations precisa de conexão.
-Antes de reativar recursos, revise a capacidade contratada e o custo estimado.
+A hospedagem está em pausa por decisão do responsável. O deploy precisa de um
+PostgreSQL disponível para executar migrations; manter os arquivos no repositório
+não garante que o banco ou o serviço existam ou estejam ativos. Antes de uma
+retomada solicitada, verifique o estado real dos recursos e sua configuração.
 
 Para publicar somente a configuração do Hosting, depois de validar o backend:
 
@@ -258,60 +314,32 @@ Para publicar somente a configuração do Hosting, depois de validar o backend:
 .\deploy.ps1 -HostingOnly
 ```
 
-Esse comando reativa um site desativado e não executa migrations nem liga o banco.
-Em 26/10/2026, a instância existente `gbeachfood` foi reduzida para Enterprise
-zonal (sem alta disponibilidade), com 1 vCPU e 4 GB RAM, e voltou a ficar parada
-(`STOPPED`, política `NEVER`). O disco permanece com 250 GB, mantendo cobrança
-de armazenamento mesmo com o banco parado. O objetivo é migrar para uma nova
-instância de 10 GB. Reduzir os 250 GB atuais exige uma migração de dados;
-o deploy não faz essa migração nem altera o tamanho da instância.
-
-A tentativa de criar a instância menor em 26/10/2026 foi bloqueada por pendência
-na conta de faturamento. A conta aparecer vinculada ao projeto não significa que
-está liberada para criar recursos. Após regularizar, será necessário exportar e
-importar os dados, conferir usuários, saldos e pedidos e atualizar a conexão SQL
-no serviço Cloud Run e no job `gbeachfood-migrate`. Não exclua a instância antiga
-antes de validar a migração e preservar um backup.
-
-Restaurar estes arquivos não reativa o Hosting. Ele permanece desativado até uma
-publicação; retome o site somente depois de validar o banco e o backend.
+Esse comando pode reativar um site desativado e não executa migrations nem liga o
+banco. Deve ser usado somente quando a publicação for solicitada e o backend
+estiver pronto.
 
 ### Pausa da hospedagem e retomada
 
-Em 26/10/2026, a hospedagem foi mantida em pausa a pedido do responsável:
+O registro histórico de 26/10/2026 indicava Hosting desativado, Cloud SQL parado
+com disco de 250 GB e acesso público do Cloud Run removido. A criação de uma
+instância menor estava bloqueada pelo faturamento. Esse registro **não comprova
+o estado atual da nuvem**.
 
-- Firebase Hosting: desativado; os arquivos de publicação foram preservados.
-- Cloud SQL `gbeachfood`: parado (`STOPPED`, `NEVER`), 1 vCPU, 4 GB RAM,
-  disponibilidade `ZONAL`, disco de 250 GB e backups preservados.
-- Cloud Run `gbeachfood`: a permissão pública `allUsers` / `roles/run.invoker`
-  foi removida. O serviço, a imagem e os segredos foram preservados.
-- A tentativa de configurar `--scaling=0` foi rejeitada por `BILLING_DISABLED`.
-  Portanto, não considerar o serviço configurado em escala manual zero.
-- Não foram encontradas execuções ativas dos jobs ou builds, nem gatilhos de
-  build nas regiões `southamerica-east1` e `global` consultadas.
+Posteriormente, o responsável informou que os dados eram apenas de teste,
+dispensou backup e pediu instruções para excluir o banco. A conclusão da exclusão
+não foi confirmada nesta documentação. Não presuma que a instância antiga ainda
+exista nem que seja necessário retomar o plano anterior de migração.
 
-A pausa não zera as cobranças de armazenamento: disco SQL, backups, IP reservado,
-objetos de build/logs, imagens e versões de segredos podem continuar gerando custos.
-A consulta ao Artifact Registry também foi bloqueada pelo faturamento. Não foi
-possível auditar integralmente todos os custos do projeto. Não desvincular a conta
-de faturamento ou excluir recursos com dados como forma de pausa reversível.
+A orientação vigente é continuar localmente e não executar deploy, jobs ou
+reativar serviços até uma nova solicitação. O pagamento de uma fatura, por si só,
+não é uma solicitação de retomada. O custo e o estado atual dos recursos precisam
+ser verificados no provedor; este README não é uma auditoria de faturamento.
 
-Não executar deploy, jobs ou reativar o banco até nova solicitação do responsável.
-Pagar a conta não é autorização para reativar o aplicativo. Quando solicitado:
-
-1. Verificar se o faturamento liberou as operações e aplicar `--scaling=0` ao
-   serviço Cloud Run antes de iniciar a manutenção do banco.
-2. Criar a instância Enterprise `ZONAL` aprovada, 1 vCPU, 4 GB RAM e 10 GB SSD.
-3. Reativar temporariamente a origem, migrar os dados e validar usuários, saldos,
-   pedidos, permissões e sequências; preservar um backup antes de remover a origem.
-4. Atualizar a conexão Cloud SQL no serviço e no job `gbeachfood-migrate`.
-5. Publicar e validar o backend com acesso autenticado; voltar à escala automática
-   (`--scaling=auto`) quando for necessário iniciar a validação.
-6. Restaurar `allUsers` com `roles/run.invoker` no serviço e publicar o Hosting
-   somente quando o banco e o backend estiverem prontos para acesso público.
-
-O `deploy.ps1` preserva a configuração de escala e de IAM existente; sozinho ele
-não restaura a permissão pública removida nesta pausa.
+Quando a retomada for solicitada, confira o banco disponível, os dados que devem
+ser mantidos, a configuração aprovada, os segredos, a conexão do serviço e do job
+`gbeachfood-migrate` e as permissões de acesso. Só então execute migrations e
+publique. O `deploy.ps1` preserva escala e IAM; sozinho ele não recria recursos nem
+restaura uma permissão pública que tenha sido removida.
 
 ### Sessão e arquivos estáticos
 
@@ -381,11 +409,9 @@ de um PostgreSQL externo. A configuração de produção recusa SQLite.
 ### Validação local da preparação
 
 A suíte isolada inclui testes da configuração de produção e do login atrás do
-proxy HTTPS. A coleta e a entrega de estáticos pelo WhiteNoise também foram
-verificadas localmente. `check --deploy` mantém apenas os avisos de HSTS para
-subdomínios e preload, deixados desabilitados até a definição de um domínio próprio.
-A imagem Docker ainda precisa ser construída e testada no Google Cloud; Docker e
-gcloud não estavam disponíveis nesta máquina durante a preparação.
+proxy HTTPS. Isso não substitui a validação de uma nova imagem Docker e do ambiente
+de hospedagem antes de uma publicação. Verifique os resultados atuais; não use
+relatos antigos de testes ou de ferramentas instaladas como garantia de prontidão.
 
 ### Ordem da primeira publicação
 
@@ -594,7 +620,7 @@ EMAIL_HOST_PASSWORD=sua-senha-de-app
 EMAIL_USE_TLS=True
 EMAIL_USE_SSL=False
 EMAIL_TIMEOUT=15
-DEFAULT_FROM_EMAIL=GFood <sua-conta@gmail.com>
+DEFAULT_FROM_EMAIL=GBeachFood <sua-conta@gmail.com>
 ```
 
 Ative a verificação em duas etapas na conta e gere uma **senha de app** nas [configurações do Google](https://support.google.com/accounts/answer/185833?hl=pt-BR). Informe-a somente no `.env` local ou nos segredos da hospedagem. A disponibilidade de senhas de app depende das políticas da conta. Não use a senha normal da conta. Reinicie a aplicação após configurar.
@@ -610,7 +636,7 @@ python -B manage.py test --settings=gfood.test_settings
 node tests/login_recovery.test.cjs
 ```
 
-A configuração de testes ignora `.env`, usa SQLite em memória, senhas de teste e e-mail em memória. Os testes da API Asaas simulam as chamadas externas. Dois testes de concorrência exigem PostgreSQL e são ignorados no SQLite. Para executá-los, forneça `TEST_DATABASE_URL` de um ambiente PostgreSQL exclusivo de testes (com permissão de criar o banco de teste) ao executar a mesma suíte; não use credenciais de produção.
+A configuração de testes ignora `.env`, usa SQLite em memória, senhas de teste e e-mail em memória. Os testes da API Asaas simulam as chamadas externas. Os testes de concorrência que exigem PostgreSQL são ignorados no SQLite. Para executá-los, forneça `TEST_DATABASE_URL` de um ambiente PostgreSQL exclusivo de testes (com permissão de criar o banco de teste) ao executar a mesma suíte; não use credenciais de produção.
 
 ---
 
@@ -646,8 +672,8 @@ A configuração de testes ignora `.env`, usa SQLite em memória, senhas de test
 | GET | `/api/cards/balance/?qr_data=UUID` | Consulta saldo por QR Code |
 | POST | `/api/cards/balance/add/` | Adiciona saldo (caixa) |
 | POST | `/api/cards/balance/remove/` | Remove saldo (caixa) |
-| POST | `/api/cards/physical/purchase/` | Registra uma unidade de R$ 2,00 por nova solicitação; recebe `qr_data`, `metodo` e `request_id` único (caixa/admin) |
-| POST | `/api/cards/temp/create/` | Cria cartão e saldo inicial; aceita `request_id` único e `incluir_cartao_fisico` booleano (caixa/admin) |
+| POST | `/api/cards/physical/purchase/` | Registra uma unidade pelo preço definido pelo admin; recebe `qr_data`, `metodo`, `request_id` e confirmação `preco_cartao` (caixa/admin) |
+| POST | `/api/cards/temp/create/` | Cria cartão e saldo inicial; recebe `request_id`, `incluir_cartao_fisico` booleano e confirmação `preco_cartao` (caixa/admin) |
 | GET | `/cards/<id>/label/` | Tela de impressão/reimpressão da etiqueta, sem nova cobrança (caixa/admin) |
 | POST | `/api/cards/client/add/` | Rota antiga desativada: retorna HTTP 410 sem alterar saldo |
 | GET | `/api/cards/client/<id>/transactions/` | Transações de um cliente (admin) |
@@ -668,6 +694,8 @@ A configuração de testes ignora `.env`, usa SQLite em memória, senhas de test
 |---|---|---|
 | GET | `/api/products/` | Lista produtos disponíveis |
 | GET | `/api/products/all/` | Lista todos (admin) |
+| GET | `/api/products/physical-card/` | Consulta o preço do cartão físico (caixa/admin) |
+| POST | `/api/products/physical-card/update/` | Atualiza o preço do cartão físico (admin); sem rota de exclusão |
 | POST | `/api/products/create/` | Cria produto (admin) |
 | POST | `/api/products/<id>/update/` | Atualiza produto (admin) |
 | POST | `/api/products/<id>/delete/` | Exclui produto (admin) |
@@ -688,11 +716,11 @@ A configuração de testes ignora `.env`, usa SQLite em memória, senhas de test
 
 ## 📱 PWA (Progressive Web App)
 
-O GFood pode ser instalado como um app no celular:
+O GBeachFood pode ser instalado como um app no celular:
 
 1. Acesse o site pelo **navegador do celular**
 2. Toque em **"Adicionar à tela inicial"** (ou "Instalar app")
-3. O GFood aparecerá como um app na sua tela inicial
+3. O GBeachFood aparecerá como um app na sua tela inicial
 
 ---
 
