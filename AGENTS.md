@@ -19,6 +19,12 @@ pedidos e pagamentos Asaas. O pacote Python de configuração continua sendo `gf
 ## Combinados com o responsável
 
 - Responda em português brasileiro, com explicações diretas.
+- **Explique antes de alterar:** ao receber uma solicitação, apresente primeiro
+  o que pretende fazer, quais arquivos ou áreas serão afetados e como verificará
+  o resultado. Durante essa explicação inicial, não altere arquivos, banco de
+  dados, configurações ou serviços. Leituras para entender o pedido são permitidas.
+  Se o usuário pedir somente análise ou planejamento, mantenha o trabalho nessa
+  etapa até que ele solicite a execução.
 - **Não execute comandos Git.** Entregue-os prontos para o usuário executar;
   essa preferência inclui consultas Git. Use leitura de arquivos para investigar.
 - Após alterações, mostre os arquivos e o que mudou, a validação realizada e

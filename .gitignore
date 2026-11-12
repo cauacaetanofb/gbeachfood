@@ -113,3 +113,4 @@ yarn-error.log*
 # Cache e logs locais do Firebase
 /.firebase/
 firebase-debug.log*
+*.xlsx
