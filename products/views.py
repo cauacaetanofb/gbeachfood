@@ -1,5 +1,6 @@
 import base64
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
 
@@ -50,6 +51,13 @@ def _get_product_image(product):
     return None
 
 
+def _product_ncm(request, current=''):
+    if 'sku' in request.POST:
+        raise ValidationError('O SKU é gerado automaticamente e não pode ser alterado.')
+    value = request.POST.get('ncm', current).strip()
+    return Product._meta.get_field('ncm').clean(value, None)
+
+
 @login_required
 def api_list_products(request):
     products = Product.objects.filter(disponivel=True).select_related('categoria')
@@ -58,6 +66,8 @@ def api_list_products(request):
         data.append({
             'id': p.id,
             'nome': p.nome,
+            'sku': p.sku,
+            'ncm': p.ncm,
             'descricao': p.descricao,
             'preco': str(p.preco),
             'categoria': p.categoria.nome if p.categoria else 'Sem categoria',
@@ -79,6 +89,8 @@ def api_all_products(request):
         data.append({
             'id': p.id,
             'nome': p.nome,
+            'sku': p.sku,
+            'ncm': p.ncm,
             'descricao': p.descricao,
             'preco': str(p.preco),
             'categoria': p.categoria.nome if p.categoria else 'Sem categoria',
@@ -94,6 +106,10 @@ def api_all_products(request):
 def api_create_product(request):
     if request.user.user_type != 'admin':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
+    try:
+        ncm = _product_ncm(request)
+    except ValidationError as error:
+        return JsonResponse({'error': error.messages[0]}, status=400)
     nome = request.POST.get('nome', '')
     descricao = request.POST.get('descricao', '')
     preco = request.POST.get('preco', '0')
@@ -109,6 +125,7 @@ def api_create_product(request):
 
     product = Product.objects.create(
         nome=nome,
+        ncm=ncm,
         descricao=descricao,
         preco=preco,
         categoria=categoria,
@@ -119,6 +136,8 @@ def api_create_product(request):
         'product': {
             'id': product.id,
             'nome': product.nome,
+            'sku': product.sku,
+            'ncm': product.ncm,
             'preco': str(product.preco),
             'categoria': categoria.nome if categoria else 'Sem categoria',
             'disponivel': product.disponivel,
@@ -136,6 +155,11 @@ def api_update_product(request, product_id):
         product = Product.objects.get(id=product_id)
     except Product.DoesNotExist:
         return JsonResponse({'error': 'Produto não encontrado'}, status=404)
+
+    try:
+        product.ncm = _product_ncm(request, product.ncm)
+    except ValidationError as error:
+        return JsonResponse({'error': error.messages[0]}, status=400)
 
     product.nome = request.POST.get('nome', product.nome)
     product.descricao = request.POST.get('descricao', product.descricao)

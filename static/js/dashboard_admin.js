@@ -18,6 +18,12 @@ function openModal(id) { document.getElementById(id).classList.add('active'); }
 // ===== Products =====
 let allProducts = [];
 
+function escapeProductText(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    })[char]);
+}
+
 async function savePhysicalCardPrice(event) {
     event.preventDefault();
     const form = document.getElementById('physical-card-price-form');
@@ -51,7 +57,7 @@ async function loadProducts() {
         allProducts = data.products;
         const cats = [...new Set(allProducts.map(p => p.categoria).filter(c => c && c !== 'Sem categoria'))];
         const catSelect = document.getElementById('filter-product-cat');
-        catSelect.innerHTML = '<option value="">Todas</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
+        catSelect.innerHTML = '<option value="">Todas</option>' + cats.map(c => `<option value="${escapeProductText(c)}">${escapeProductText(c)}</option>`).join('');
         filterProducts();
     } catch (e) {
         showToast(e.message, 'error');
@@ -62,7 +68,7 @@ function filterProducts() {
     const search = document.getElementById('search-product').value.toLowerCase().trim();
     const catFilter = document.getElementById('filter-product-cat').value;
     let filtered = allProducts;
-    if (search) filtered = filtered.filter(p => p.nome.toLowerCase().includes(search));
+    if (search) filtered = filtered.filter(p => [p.nome, p.sku, p.ncm].some(value => (value || '').toLowerCase().includes(search)));
     if (catFilter) filtered = filtered.filter(p => p.categoria === catFilter);
     renderProducts(filtered);
 }
@@ -75,13 +81,14 @@ function renderProducts(products) {
     }
     container.innerHTML = products.map(p => `
         <div class="product-item">
-            ${p.imagem ? `<img src="${p.imagem}" alt="" style="width:44px;height:44px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : `<div style="width:44px;height:44px;border-radius:6px;background:var(--bg-dark);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#box"></use></svg></div>`}
+            ${p.imagem ? `<img src="${escapeProductText(p.imagem)}" alt="" style="width:44px;height:44px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : `<div style="width:44px;height:44px;border-radius:6px;background:var(--bg-dark);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#box"></use></svg></div>`}
             <div class="product-info" style="flex:1;min-width:0;">
-                <div class="name">${p.nome}</div>
+                <div class="name">${escapeProductText(p.nome)}</div>
                 <div class="price">R$ ${parseFloat(p.preco).toFixed(2)}</div>
-                <div class="category">${p.categoria}${p.disponivel ? '' : ' • <span style="color:var(--danger)">Indisponível</span>'}</div>
+                <div class="category">${escapeProductText(p.categoria)}${p.disponivel ? '' : ' • <span style="color:var(--danger)">Indisponível</span>'}</div>
+                <div class="category product-codes">SKU: ${escapeProductText(p.sku)}<br>NCM: ${escapeProductText(p.ncm || 'Não informado')}</div>
             </div>
-            <button class="btn-add-cart" onclick="editProduct(${p.id}, '${p.nome}', '${p.preco}', '${p.categoria}', '${(p.descricao||'').replace(/'/g,"\\'")}', ${p.disponivel}, '${p.imagem||''}')" title="Editar"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#edit"></use></svg></button>
+            <button class="btn-add-cart" onclick="editProduct(${p.id})" title="Editar"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#edit"></use></svg></button>
             <button class="btn-add-cart action-danger" onclick="deleteProduct(${p.id})" style="background:var(--danger);" title="Excluir"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#delete"></use></svg></button>
         </div>
     `).join('');
@@ -97,10 +104,15 @@ function openAddProduct() {
     openModal('modal-product');
 }
 
-function editProduct(id, nome, preco, categoria, descricao, disponivel, imagem) {
+function editProduct(id) {
+    const product = allProducts.find(p => p.id === id);
+    if (!product) return;
+    const { nome, preco, categoria, descricao, disponivel, imagem, sku, ncm } = product;
     document.getElementById('product-id').value = id;
     document.getElementById('modal-product-title').textContent = 'Editar Produto';
     document.getElementById('p-nome').value = nome;
+    document.getElementById('p-sku').value = sku || '';
+    document.getElementById('p-ncm').value = ncm || '';
     document.getElementById('p-preco').value = preco;
     document.getElementById('p-categoria').value = categoria === 'Sem categoria' ? '' : categoria;
     document.getElementById('p-descricao').value = descricao;
@@ -122,6 +134,7 @@ async function saveProduct(e) {
     const id = document.getElementById('product-id').value;
     const fd = new FormData();
     fd.append('nome', document.getElementById('p-nome').value);
+    fd.append('ncm', document.getElementById('p-ncm').value.trim());
     fd.append('preco', document.getElementById('p-preco').value);
     fd.append('categoria', document.getElementById('p-categoria').value);
     fd.append('descricao', document.getElementById('p-descricao').value);
@@ -131,12 +144,14 @@ async function saveProduct(e) {
 
     try {
         const url = id ? `/api/products/${id}/update/` : '/api/products/create/';
-        await fetch(url, {
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'X-CSRFToken': csrftoken },
             credentials: 'same-origin',
             body: fd,
-        }).then(r => r.json());
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Não foi possível salvar o produto.');
         closeModal('modal-product');
         showToast(id ? 'Produto atualizado!' : 'Produto criado!');
         loadProducts();

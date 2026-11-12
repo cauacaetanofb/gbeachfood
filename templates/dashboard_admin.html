@@ -11,6 +11,7 @@
     #physical-card-price-save { width:auto; }
     #physical-card-price-status { flex-basis:100%;margin:0;color:var(--text-secondary);font-size:0.85rem; }
     #physical-card-price-status:empty { display:none; }
+    #products-list .product-codes { overflow-wrap:anywhere; }
 </style>
 {% endblock %}
 
@@ -61,7 +62,7 @@
             <button class="btn-success" onclick="openAddProduct()" style="font-size:0.82rem;"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="/static/images/ui-icons.svg#plus"></use></svg> Novo</button>
         </div>
         <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
-            <input class="input search-input" id="search-product" placeholder="Buscar por nome..." oninput="filterProducts()" style="flex:2;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.9em;font-size:0.85rem;">
+            <input class="input search-input" id="search-product" placeholder="Buscar por nome, SKU ou NCM..." oninput="filterProducts()" style="flex:2;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.9em;font-size:0.85rem;">
             <select id="filter-product-cat" onchange="filterProducts()" style="flex:1;background:var(--bg-dark);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:0.6em 0.5em;font-size:0.82rem;">
                 <option value="">Todas</option>
             </select>
@@ -148,6 +149,15 @@
             <div class="field">
                 <label for="p-nome">Nome</label>
                 <input class="input" id="p-nome" placeholder="Nome do produto" required>
+            </div>
+            <div class="field">
+                <label for="p-sku">SKU automático</label>
+                <input class="input" id="p-sku" type="text" placeholder="Gerado ao salvar o produto" readonly>
+            </div>
+            <div class="field">
+                <label for="p-ncm">NCM (opcional)</label>
+                <input class="input" id="p-ncm" type="text" inputmode="numeric" maxlength="8" pattern="[0-9]{8}" placeholder="8 dígitos, sem pontuação" title="Informe 8 dígitos, sem pontuação." aria-describedby="p-ncm-help">
+                <small id="p-ncm-help" style="color:var(--text-secondary);">Informe o código fiscal do produto, se disponível.</small>
             </div>
             <div class="field">
                 <label for="p-preco">Preço (R$)</label>
@@ -325,5 +335,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dashboard_admin.js' %}?v=9"></script>
+<script src="{% static 'js/dashboard_admin.js' %}?v=10"></script>
 {% endblock %}

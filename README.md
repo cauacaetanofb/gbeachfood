@@ -54,8 +54,9 @@ a publicação solicitada e as verificações realizadas na nuvem nessa data.
 - Asaas oferece PIX e crédito à vista em uma vez. Sandbox ou produção dependem
   do ambiente configurado, e não da pasta ou do computador em que o app roda.
 - Emissão de nota fiscal ainda não está implementada. O responsável informou
-  empresa no ES e regime Simples Nacional; os dados fiscais dos produtos ainda
-  precisam ser definidos e validados antes de implementar essa integração.
+  empresa no ES e regime Simples Nacional. O cadastro já aceita NCM opcional;
+  os códigos e demais dados fiscais ainda precisam ser definidos e validados
+  antes de implementar essa integração.
 
 ---
 
@@ -655,6 +656,29 @@ Referências: [pagamento por cartão](https://docs.asaas.com/docs/payments-via-c
 
 ---
 
+## SKU e NCM dos produtos
+
+Em **Administrador → Produtos**, cada produto recebe automaticamente um SKU
+único ao ser criado, no formato `GBF-` seguido de 32 caracteres hexadecimais.
+O código é somente leitura e permanece igual nas edições. Ele também é gerado
+em criações pelo ORM e por `bulk_create`; não é um número sequencial.
+
+O **NCM** é opcional e pode ser preenchido ou removido no formulário. Quando
+informado, deve conter exatamente oito dígitos, sem pontuação; zeros à esquerda
+são preservados. O sistema valida o formato, sem consultar a tabela fiscal nem
+escolher a classificação do produto. Isso não implementa emissão de nota fiscal.
+
+A lista administrativa exibe SKU e NCM e permite buscar pelos dois códigos ou
+pelo nome. As APIs de listagem e criação retornam `sku` e `ncm`; na atualização,
+omitir `ncm` mantém o valor atual e enviar vazio limpa o campo. Enviar `sku` nas
+APIs de criação ou atualização é recusado, pois o servidor gera esse código.
+Somente o perfil `admin` pode cadastrar ou alterar produtos.
+
+As migrações de `products.0005` a `products.0007` preenchem um SKU diferente em
+cada produto existente e deixam o NCM vazio, preservando os demais dados. Aplique as
+migrations no banco do ambiente desejado antes de usar a versão atualizada.
+O item separado **Cartão físico** mantém seu cadastro de preço atual.
+
 ## Cartão temporário com etiqueta
 
 Em **Administrador → Produtos**, o item **Cartão físico** fica fixado no topo,
@@ -769,6 +793,7 @@ Se faltar configuração ou o SMTP falhar, a API retorna erro JSON (HTTP 503). U
 ```bash
 python -B manage.py test --settings=gfood.test_settings
 node tests/login_recovery.test.cjs
+node tests/product_codes.test.cjs
 ```
 
 A configuração de testes ignora `.env`, usa SQLite em memória, senhas de teste e e-mail em memória. Os testes da API Asaas simulam as chamadas externas. Os testes de concorrência que exigem PostgreSQL são ignorados no SQLite. Para executá-los, forneça `TEST_DATABASE_URL` de um ambiente PostgreSQL exclusivo de testes (com permissão de criar o banco de teste) ao executar a mesma suíte; não use credenciais de produção.

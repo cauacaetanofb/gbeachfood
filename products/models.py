@@ -1,7 +1,12 @@
 from decimal import Decimal
+from uuid import uuid4
 
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
+
+
+def generate_product_sku():
+    return f'GBF-{uuid4().hex.upper()}'
 
 
 class PhysicalCardPrice(models.Model):
@@ -38,6 +43,14 @@ class Category(models.Model):
 
 class Product(models.Model):
     nome = models.CharField(max_length=200, verbose_name='Nome')
+    sku = models.CharField(
+        max_length=36, unique=True, default=generate_product_sku,
+        editable=False, verbose_name='SKU',
+    )
+    ncm = models.CharField(
+        max_length=8, blank=True, default='', verbose_name='NCM',
+        validators=[RegexValidator(r'\A[0-9]{8}\Z', 'Informe um NCM com exatamente 8 dígitos.')],
+    )
     descricao = models.TextField(blank=True, verbose_name='Descrição', max_length=500)
     preco = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Preço')
     categoria = models.ForeignKey(
