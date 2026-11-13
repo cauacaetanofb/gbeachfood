@@ -298,9 +298,12 @@ class PixCreationTests(TestCase):
             post.return_value.status_code = 200
             post.return_value.json.return_value = {'id': 'pay_created'}
             get.return_value.json.return_value = {'encodedImage': 'image', 'payload': 'pix-code'}
+            get.return_value.status_code = 200
             response = self.request_payment('12.34')
             self.assertEqual(response.status_code, 200)
             self.assertEqual(post.call_args.kwargs['json']['value'], 12.34)
+            self.assertEqual(response.json()['pix_copia_cola'], 'pix-code')
+            self.assertEqual(response.json()['pix_qr_code_image'], 'image')
         recarga = Recarga.objects.get()
         self.assertEqual(recarga.valor, Decimal('12.34'))
         self.assertEqual(recarga.status, 'pendente')

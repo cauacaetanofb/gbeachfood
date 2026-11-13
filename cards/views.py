@@ -21,6 +21,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST, require_GET
 
 from .models import Card, Transaction, Recarga, CardIssuance
+from .asaas_config import asaas_base_url, online_payments_enabled
 from products.models import PhysicalCardPrice
 
 logger = logging.getLogger(__name__)
@@ -491,8 +492,12 @@ def _asaas_headers():
 
 
 def _asaas_url(path):
-    """Monta URL da API Asaas, removendo barras extras."""
-    base = django_settings.ASAAS_BASE_URL.strip().rstrip('/')
+    """A chave só pode ser enviada às URLs HTTPS oficiais do Asaas."""
+    base = asaas_base_url()
+    if not base:
+        raise _AsaasError(
+            'Pagamentos indisponíveis por uma falha na configuração do serviço. Procure o atendimento.',
+            code='asaas_configuration', status=503)
     return f'{base}/{path.lstrip("/")}'
 
 
@@ -511,7 +516,7 @@ class _AsaasError(Exception):
 def _asaas_post(path, payload):
     try:
         response = http_requests.post(_asaas_url(path), json=payload,
-                                      headers=_asaas_headers(), timeout=15)
+                                      headers=_asaas_headers(), timeout=15, allow_redirects=False)
     except http_requests.Timeout:
         raise _AsaasError(
             'O Asaas demorou para responder. Procure o atendimento antes de tentar novamente.',
@@ -521,6 +526,10 @@ def _asaas_post(path, payload):
             'Não foi possível conectar ao serviço de pagamentos. Tente novamente em instantes.',
             code='asaas_connection') from None
 
+    # Nunca encaminha o access_token para um destino indicado por redirecionamento.
+    if 300 <= response.status_code < 400:
+        raise _AsaasError('O serviço de pagamentos retornou uma resposta inválida. Procure o atendimento.',
+                          code='asaas_invalid_response')
     # Classifica HTTP antes do JSON: um erro de autenticação também pode vir em HTML.
     if response.status_code in (401, 403):
         logger.warning('Asaas: autenticação ou acesso recusado em %s (HTTP %s). '
@@ -588,7 +597,7 @@ def api_asaas_create_payment(request):
     """Cria PIX ou fatura de crédito à vista; nunca recebe dados do cartão."""
     if request.user.user_type != 'cliente':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
-    if not django_settings.ASAAS_PAYMENTS_ENABLED or not django_settings.ASAAS_API_KEY.strip():
+    if not online_payments_enabled():
         return JsonResponse({
             'error': 'Recargas online temporariamente indisponíveis. Procure o caixa para adicionar saldo.',
             'code': 'payments_disabled',
@@ -648,7 +657,9 @@ def api_asaas_create_payment(request):
                              'metodo': metodo, 'invoice_url': invoice_url, 'valor': str(valor)})
     try:
         pix_resp = http_requests.get(_asaas_url(f'payments/{payment["id"]}/pixQrCode'),
-                                     headers=_asaas_headers(), timeout=15)
+                                     headers=_asaas_headers(), timeout=15, allow_redirects=False)
+        if pix_resp.status_code != 200:
+            raise ValueError('Invalid QR response status')
         pix_data = pix_resp.json()
         if not isinstance(pix_data, dict):
             raise ValueError('Invalid QR response')
@@ -664,7 +675,7 @@ def api_asaas_create_payment(request):
 def api_asaas_pending_payments(request):
     if request.user.user_type != 'cliente':
         return JsonResponse({'error': 'Sem permissão'}, status=403)
-    if not django_settings.ASAAS_PAYMENTS_ENABLED or not django_settings.ASAAS_API_KEY.strip():
+    if not online_payments_enabled():
         return JsonResponse({'recargas': []})
     recargas = Recarga.objects.filter(user=request.user, card__user=request.user,
         card__bloqueado=False, metodo='credito', status='pendente').exclude(invoice_url='')[:10]
@@ -677,7 +688,7 @@ def api_asaas_pending_payments(request):
 def api_asaas_webhook(request):
     """Autentica antes de interpretar qualquer confirmação de pagamento."""
     expected_token = django_settings.ASAAS_WEBHOOK_TOKEN
-    if not expected_token:
+    if not expected_token.strip():
         return JsonResponse({'error': 'Webhook não configurado'}, status=503)
     token = request.headers.get('asaas-access-token', '')
     if not token or not constant_time_compare(token, expected_token):

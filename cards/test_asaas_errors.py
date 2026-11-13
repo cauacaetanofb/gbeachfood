@@ -140,3 +140,56 @@ class AsaasErrorTests(TestCase):
         self.assertEqual(result.json()['code'], 'asaas_authentication')
         self.assertEqual(post.call_count, 2)
         self.assert_no_payment()
+
+    @patch('cards.views.http_requests.post')
+    def test_redirects_are_rejected_without_forwarding_credentials(self, post):
+        self.user.asaas_customer_id = 'cus_existing'
+        self.user.save(update_fields=['asaas_customer_id'])
+        for status in (301, 302, 303, 307, 308):
+            with self.subTest(status=status):
+                response = self.provider_response(status, {
+                    'id': 'pay_redirect', 'invoiceUrl': 'https://www.asaas.com/i/redirect'})
+                response.headers = {'Location': 'https://untrusted.example/collect'}
+                post.return_value = response
+                post.reset_mock()
+                result = self.create_payment()
+                self.assertEqual(result.status_code, 502)
+                self.assertEqual(result.json()['code'], 'asaas_invalid_response')
+                post.assert_called_once()
+                self.assertIs(post.call_args.kwargs['allow_redirects'], False)
+                response.json.assert_not_called()
+                self.assertNotIn('test-key', result.content.decode())
+                self.assertNotIn('untrusted', result.content.decode())
+        self.assert_no_payment()
+
+    @patch('cards.views.http_requests.post')
+    def test_official_base_urls_accept_trailing_slash(self, post):
+        self.user.asaas_customer_id = 'cus_existing'
+        self.user.save(update_fields=['asaas_customer_id'])
+        for index, base in enumerate(('https://api-sandbox.asaas.com/v3', 'https://api.asaas.com/v3')):
+            with self.subTest(base=base), override_settings(ASAAS_BASE_URL=f' {base}/ '):
+                post.return_value = self.provider_response(200, {
+                    'id': f'pay_base_{index}', 'invoiceUrl': 'https://www.asaas.com/i/test'})
+                self.assertEqual(self.create_payment().status_code, 200)
+                self.assertEqual(post.call_args.args[0], f'{base}/payments')
+                self.assertIs(post.call_args.kwargs['allow_redirects'], False)
+        self.assertFalse(Transaction.objects.exists())
+
+    @patch('cards.views.http_requests.get')
+    @patch('cards.views.http_requests.post')
+    def test_pix_redirect_is_not_followed_or_returned_to_client(self, post, get):
+        self.user.asaas_customer_id = 'cus_existing'
+        self.user.save(update_fields=['asaas_customer_id'])
+        post.return_value = self.provider_response(200, {'id': 'pay_pix_redirect'})
+        get.return_value = self.provider_response(302, {'payload': 'untrusted-pix', 'encodedImage': 'untrusted-image'})
+        get.return_value.headers = {'Location': 'https://untrusted.example/collect'}
+        result = self.client.post('/api/asaas/create-payment/',
+            {'valor': '20.00', 'metodo': 'pix'}, content_type='application/json')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()['pix_copia_cola'], '')
+        self.assertEqual(result.json()['pix_qr_code_image'], '')
+        self.assertIs(get.call_args.kwargs['allow_redirects'], False)
+        get.return_value.json.assert_not_called()
+        self.assertNotIn('test-key', result.content.decode())
+        self.assertEqual(Recarga.objects.get().status, 'pendente')
+        self.assertFalse(Transaction.objects.exists())

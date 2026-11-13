@@ -527,7 +527,7 @@ conta de serviço com `Cloud SQL Client` e acesso somente aos segredos necessár
 | `EMAIL_HOST_PASSWORD` | Senha de app Gmail, referenciada pelo Secret Manager |
 | `DEFAULT_FROM_EMAIL` | Remetente, por exemplo `GBeachFood <sua-conta@gmail.com>` |
 | `ASAAS_API_KEY` | Chave Asaas no Secret Manager |
-| `ASAAS_PAYMENTS_ENABLED` | `False` por padrão; `True` permite recargas online somente com chave configurada |
+| `ASAAS_PAYMENTS_ENABLED` | `False` por padrão; `True` exige chave, token de webhook distinto e URL oficial configurados |
 | `ASAAS_BASE_URL` | URL sandbox ou produção correspondente à chave Asaas |
 | `ASAAS_WEBHOOK_TOKEN` | Token do webhook no Secret Manager; o mesmo cadastrado no Asaas |
 
@@ -595,6 +595,14 @@ O sistema utiliza a [API do Asaas](https://docs.asaas.com) para processar recarg
 - **Sandbox** (testes): `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3`
 - **Produção**: `ASAAS_BASE_URL=https://api.asaas.com/v3`
 
+A API de criação, a lista de faturas pendentes e a tela do cliente só oferecem
+recargas online com chave e token de webhook preenchidos, diferentes entre si,
+e uma das duas URLs oficiais acima. Essa verificação é local: não comprova que
+a chave esteja ativa nem que o webhook tenha sido cadastrado na conta correta.
+As chamadas autenticadas ao Asaas não seguem redirecionamentos, para evitar
+encaminhar a chave a outro destino. A pausa de novas cobranças não interrompe
+o webhook autenticado nem o processamento das recargas já registradas.
+
 A `ASAAS_API_KEY` precisa ser válida e pertencer ao mesmo ambiente da URL.
 HTTP 401 (`invalid_access_token`) indica chave recusada, não CPF inválido.
 Confira se a chave foi copiada integralmente e continua ativa no painel do Asaas;
@@ -604,12 +612,84 @@ O app diferencia falhas de configuração, conexão e cadastro, sem expor respos
 sensíveis do provedor. Um timeout pode deixar o resultado da solicitação incerto;
 confira o painel antes de repetir a criação.
 
+### Conectar a conta de produção sem expor a chave
+
+O responsável confirmou em **13/11/2026** que criou uma chave de produção da conta
+correta, ainda sem armazená-la. A consulta somente de metadados confirmou que os
+segredos `gbeachfood-asaas-api-key` e `gbeachfood-asaas-webhook-token` já existem no
+projeto `gbeachfood`. O serviço usa a versão `1` do token de webhook e ainda não
+tem referência à chave de API. A nova conta **ainda não foi conectada ou validada**.
+
+1. Abra o [Secret Manager do projeto](https://console.cloud.google.com/security/secret-manager?project=gbeachfood).
+   Em `gbeachfood-asaas-api-key`, escolha **Adicionar nova versão** e cole a nova
+   chave diretamente no campo de valor secreto. Preserve todos os caracteres,
+   inclusive `$`, e anote apenas o número da versão. Não cole a chave no chat,
+   terminal, JavaScript, HTML ou arquivos versionados. Não precisa salvar a chave
+   de produção no `.env` local para configurar a hospedagem.
+2. No Asaas de **produção**, abra **Menu do usuário > Integrações > Webhooks >
+   Criar webhook**. Preencha os campos da seção abaixo. Use **Gerar token** e salve
+   esse valor como nova versão de `gbeachfood-asaas-webhook-token` no Secret Manager.
+   Esse token deve ter entre 32 e 255 caracteres, sem espaços, e ser diferente da
+   chave de API. Deixe o novo webhook desativado durante a preparação do servidor.
+3. Antes da troca, confira se há clientes vinculados, faturas pendentes ou pagamentos
+   da conta anterior. Não apague históricos nem reutilize seus links na nova conta.
+   A troca do token também afeta as entregas do webhook antigo; pendências exigem
+   reconciliação e planejamento da transição antes de substituir a configuração.
+4. Na publicação autorizada, configure o serviço `gbeachfood` do Cloud Run,
+   região `southamerica-east1`, com as referências abaixo. Escolha as **versões
+   numéricas recém-salvas**, e não `latest`. Salvar uma versão no Secret Manager
+   não atualiza automaticamente a revisão que referencia outra versão.
+
+   | Variável do serviço | Configuração |
+   | --- | --- |
+   | `ASAAS_API_KEY` | Referência ao segredo `gbeachfood-asaas-api-key`, na nova versão |
+   | `ASAAS_WEBHOOK_TOKEN` | Referência ao segredo `gbeachfood-asaas-webhook-token`, na nova versão |
+   | `ASAAS_BASE_URL` | `https://api.asaas.com/v3` |
+   | `ASAAS_PAYMENTS_ENABLED` | Manter `False` durante a configuração |
+
+   A conta de serviço do app precisa acessar esses segredos. Preserve as demais
+   variáveis, referências, permissões e limites de escala. O `deploy.ps1` publica
+   o código, mas não cadastra a nova chave nem troca as referências dos segredos.
+5. Com o servidor atualizado e o token correspondente, ative o novo webhook e
+   confira suas entregas em **Logs de Webhooks**. O endpoint deve responder
+   HTTP 200 a eventos autenticados válidos; token incorreto retorna 401 e ausência
+   de token configurado retorna 503. Abrir a URL no navegador faz GET e retorna
+   405, pois a integração usa POST. A URL deve ser HTTPS e responder diretamente,
+   sem redirecionamento.
+6. Valide os fluxos PIX, crédito, reenvio e revisão em um ambiente Sandbox separado,
+   com chave, token e banco próprios. O Asaas não alcança `localhost`; o ambiente
+   de testes também precisa de uma URL HTTPS acessível para receber notificações.
+   Não aponte o Sandbox para o banco de produção. Só habilite
+   `ASAAS_PAYMENTS_ENABLED=True` em produção depois de validar a configuração da
+   conta correta. Uma verificação com cobrança real exige solicitação específica.
+
+A chave de API é usada apenas pelo Django nas chamadas ao Asaas. O navegador recebe
+o QR Code PIX ou o link de pagamento e consulta o status da própria recarga.
+A URL pública do webhook não contém segredos: o servidor autentica cada POST pelo
+cabeçalho `asaas-access-token`. Retornar da página de pagamento não confirma saldo.
+
+Referências: [autenticação Asaas](https://docs.asaas.com/docs/authentication-2),
+[configuração de webhooks](https://central.ajuda.asaas.com/hc/pt-br/articles/55669339031835-Quais-s%C3%A3o-as-op%C3%A7%C3%B5es-de-configura%C3%A7%C3%A3o-de-um-Webhook-no-Asaas),
+[versões de segredos](https://docs.cloud.google.com/secret-manager/docs/add-secret-version),
+[segredos no Cloud Run](https://docs.cloud.google.com/run/docs/configuring/services/secrets).
+
 ### Webhook
 
 Configure a URL do webhook no painel do Asaas:
 ```
 https://gbeachfood.web.app/api/asaas/webhook/
 ```
+
+| Campo no Asaas | Valor |
+| --- | --- |
+| Nome | `GBeachFood - Producao` |
+| URL | `https://gbeachfood.web.app/api/asaas/webhook/` (com a barra final) |
+| E-mail | E-mail do responsável para alertas de falha |
+| Versão da API | `3` |
+| Token de autenticação | Token próprio gerado no painel; mesmo valor de `ASAAS_WEBHOOK_TOKEN` no servidor |
+| Tipo de envio | Sequencial (`SEQUENTIALLY`) |
+| Ativar webhook | Após configurar o token correspondente no servidor |
+| Fila de sincronização | Ativa, sem interrupção, quando iniciar a operação |
 
 Eventos que devem ser habilitados:
 - `PAYMENT_CONFIRMED`
@@ -648,8 +728,9 @@ sem permitir alterar seus dados financeiros diretamente.
 
 Antes de usar em produção, habilite os eventos acima no webhook da conta Asaas e
 valide no sandbox a fatura, confirmação e revisão. Os testes automatizados usam
-respostas simuladas e não substituem essa validação da conta. A hospedagem segue
-pausada; nenhuma cobrança ou publicação real foi executada por esta alteração.
+respostas simuladas e não substituem essa validação da conta. O estado da infraestrutura
+está registrado na seção de hospedagem; as recargas online seguem pausadas até a conexão
+e validação da conta correta. Nenhuma cobrança real faz parte dos testes automatizados.
 
 Referências: [pagamento por cartão](https://docs.asaas.com/docs/payments-via-credit-card),
 [eventos de cobrança](https://docs.asaas.com/docs/webhook-para-cobrancas).

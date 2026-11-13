@@ -14,6 +14,7 @@ if os.getenv('TEST_DATABASE_URL'):
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 ASAAS_API_KEY = 'test-api-key'
+ASAAS_BASE_URL = 'https://api-sandbox.asaas.com/v3'
 ASAAS_PAYMENTS_ENABLED = True
 ASAAS_WEBHOOK_TOKEN = 'test-webhook-token'
 ALLOWED_HOSTS = ['testserver', 'localhost']

@@ -39,6 +39,49 @@ class PaymentAvailabilityTests(TestCase):
         self.assert_creation_blocked()
         self.assertContains(self.client.get('/dashboard/'), 'Recarga no caixa')
 
+    @override_settings(ASAAS_PAYMENTS_ENABLED=True)
+    def test_incomplete_or_unsafe_configuration_blocks_payments_and_pending_links(self):
+        recarga = Recarga.objects.create(card=self.card, user=self.user, valor=Decimal('20.00'),
+            metodo='credito', asaas_payment_id='pay_config',
+            invoice_url='https://www.asaas.com/i/config')
+        configurations = (
+            {'ASAAS_WEBHOOK_TOKEN': ''},
+            {'ASAAS_WEBHOOK_TOKEN': '   '},
+            {'ASAAS_API_KEY': 'same-secret', 'ASAAS_WEBHOOK_TOKEN': 'same-secret'},
+            {'ASAAS_BASE_URL': 'http://api.asaas.com/v3'},
+            {'ASAAS_BASE_URL': 'https://api.asaas.com.evil.example/v3'},
+            {'ASAAS_BASE_URL': 'https://user:secret@api.asaas.com/v3'},
+            {'ASAAS_BASE_URL': 'https://api.asaas.com/v3?token=secret'},
+            {'ASAAS_BASE_URL': 'https://api.asaas.com/v3#fragment'},
+        )
+        with patch('cards.views.http_requests.post') as post, patch('cards.views.http_requests.get') as get:
+            for configuration in configurations:
+                with self.subTest(configuration=list(configuration)), override_settings(**configuration):
+                    for method in ('pix', 'credito'):
+                        for _ in range(2):
+                            response = self.client.post('/api/asaas/create-payment/',
+                                {'valor': '20.00', 'metodo': method}, content_type='application/json')
+                            self.assertEqual(response.status_code, 503)
+                            self.assertEqual(response.json()['code'], 'payments_disabled')
+                    self.assertContains(self.client.get('/dashboard/'), 'Recarga no caixa')
+                    self.assertEqual(self.client.get('/api/asaas/pending-payments/').json()['recargas'], [])
+            post.assert_not_called()
+            get.assert_not_called()
+        self.card.refresh_from_db()
+        recarga.refresh_from_db()
+        self.assertEqual(self.card.saldo, 0)
+        self.assertEqual(recarga.status, 'pendente')
+        self.assertEqual(Recarga.objects.count(), 1)
+        self.assertFalse(Transaction.objects.exists())
+
+    @override_settings(ASAAS_PAYMENTS_ENABLED=True, ASAAS_API_KEY='private-api-secret',
+                       ASAAS_WEBHOOK_TOKEN='private-webhook-secret')
+    def test_dashboard_does_not_expose_credentials(self):
+        response = self.client.get('/dashboard/')
+        self.assertContains(response, 'id="add-metodo"')
+        self.assertNotContains(response, 'private-api-secret')
+        self.assertNotContains(response, 'private-webhook-secret')
+
     def test_customer_dashboard_keeps_card_and_balance_without_payment_controls(self):
         response = self.client.get('/dashboard/')
         self.assertContains(response, 'Recarga no caixa')
