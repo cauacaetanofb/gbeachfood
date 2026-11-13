@@ -38,14 +38,18 @@ as verificações realizadas e o que falta fazer.
 Contexto revisado em **11/11/2026** a partir do código local e das decisões do
 responsável. A seção de hospedagem registra também a configuração econômica,
 a publicação solicitada e as verificações realizadas na nuvem nessa data.
+As referências dos segredos e o estado da integração Asaas foram atualizados em
+**13/11/2026**, conforme descrito na seção de pagamentos.
 
 - O aplicativo foi publicado em `https://gbeachfood.web.app` com o perfil econômico,
   migrations aplicadas e administrador configurado. O desenvolvimento também pode
   continuar localmente; novas publicações não devem ocorrer automaticamente.
-- Recargas online estão pausadas: o responsável informou que ainda vai conectar
-  a conta Asaas correta. A chave atual foi retirada do serviço Cloud Run e
-  `ASAAS_PAYMENTS_ENABLED=False` foi configurado. Recargas presenciais, saldo e
-  pedidos continuam disponíveis. A recuperação de senha por e-mail aguarda SMTP.
+- Recargas online estão pausadas com `ASAAS_PAYMENTS_ENABLED=False`. A chave e o
+  token da conta Asaas indicada pelo responsável já estão vinculados ao Cloud Run
+  pelas versões `2` dos segredos. A autenticação e a configuração do webhook foram
+  verificadas; o fluxo completo de pagamento ainda precisa ser validado antes da
+  ativação. Recargas presenciais, saldo e pedidos continuam disponíveis. A
+  recuperação de senha por e-mail aguarda SMTP.
 - Cartões de visitantes são emitidos como etiquetas pelo caixa. O cartão físico
   em branco é opcional, pode ser comprado novamente e tem preço definido pelo admin.
 - A área do cartão físico no admin deve permanecer compacta: título, preço e
@@ -457,8 +461,17 @@ no banco são ignoradas. Nenhuma cobrança real foi gerada na validação. Os te
 simulados confirmam o bloqueio de PIX/crédito e reenvios sem chamadas ao provedor,
 a preservação de pendências, do webhook e das recargas presenciais.
 
-Pendências: conectar e validar a conta Asaas correta antes de habilitar recargas
-online; configurar o envio de e-mail para recuperação de senha (não havia
+Em **13/11/2026**, após o responsável salvar as versões `2` dos segredos e desativar
+as versões `1`, o deploy parou porque o Cloud Run ainda referenciava o token antigo.
+As migrations dessa publicação já haviam concluído com sucesso. Com autorização
+explícita, o serviço foi atualizado para as duas versões `2`, aproveitando a imagem
+já construída. A revisão `gbeachfood-00019-ns6` ficou pronta e recebeu 100% do tráfego,
+com recargas online ainda pausadas. Não houve novo build, nova execução de migrations
+ou publicação do Hosting nessa correção; o endereço existente do Hosting respondeu
+normalmente. As verificações e limitações estão detalhadas na seção de pagamentos.
+
+Pendências: validar o fluxo completo de pagamento da conta Asaas antes de habilitar
+recargas online; configurar o envio de e-mail para recuperação de senha (não havia
 credenciais SMTP no serviço, no Secret Manager ou no ambiente local), cadastrar
 produtos e funcionários conforme a operação e validar fluxos de pagamento e carga
 representativos antes do uso operacional amplo. A senha do administrador foi
@@ -615,10 +628,29 @@ confira o painel antes de repetir a criação.
 ### Conectar a conta de produção sem expor a chave
 
 O responsável confirmou em **13/11/2026** que criou uma chave de produção da conta
-correta, ainda sem armazená-la. A consulta somente de metadados confirmou que os
-segredos `gbeachfood-asaas-api-key` e `gbeachfood-asaas-webhook-token` já existem no
-projeto `gbeachfood`. O serviço usa a versão `1` do token de webhook e ainda não
-tem referência à chave de API. A nova conta **ainda não foi conectada ou validada**.
+correta e salvou a chave e o token como versões `2` no Secret Manager. O serviço
+`gbeachfood` usa `ASAAS_API_KEY=gbeachfood-asaas-api-key:2` e
+`ASAAS_WEBHOOK_TOKEN=gbeachfood-asaas-webhook-token:2`, com
+`ASAAS_BASE_URL=https://api.asaas.com/v3` e `ASAAS_PAYMENTS_ENABLED=False`.
+As versões `1` estão desativadas. O job `gbeachfood-migrate` não referencia os
+segredos Asaas e não precisou de alteração.
+
+Verificações realizadas sem criar cobranças nem movimentar saldo:
+
+- Login pelo Firebase Hosting: HTTP 200.
+- POST ao webhook sem token: HTTP 401.
+- POST com o token da versão `2` e um evento de verificação ignorado pelo app: HTTP 200.
+- Consulta autenticada de webhooks no Asaas de produção: HTTP 200, com um webhook
+  para a URL do app, ativo, fila não interrompida, API v3, envio sequencial e todos
+  os oito eventos necessários. A consulta não retornou o token cadastrado no Asaas;
+  não foi possível compará-lo com o segredo do servidor por essa resposta.
+
+Esses resultados confirmam acesso à API e autenticação do endpoint, mas **não
+substituem a validação de uma entrega do Asaas e do fluxo completo de pagamento**.
+As recargas online continuam pausadas. Valores secretos foram usados apenas em
+memória e não foram impressos nem incluídos nos arquivos do projeto.
+
+Procedimento para configurar ou substituir os segredos:
 
 1. Abra o [Secret Manager do projeto](https://console.cloud.google.com/security/secret-manager?project=gbeachfood).
    Em `gbeachfood-asaas-api-key`, escolha **Adicionar nova versão** e cole a nova
@@ -672,6 +704,27 @@ Referências: [autenticação Asaas](https://docs.asaas.com/docs/authentication-
 [configuração de webhooks](https://central.ajuda.asaas.com/hc/pt-br/articles/55669339031835-Quais-s%C3%A3o-as-op%C3%A7%C3%B5es-de-configura%C3%A7%C3%A3o-de-um-Webhook-no-Asaas),
 [versões de segredos](https://docs.cloud.google.com/secret-manager/docs/add-secret-version),
 [segredos no Cloud Run](https://docs.cloud.google.com/run/docs/configuring/services/secrets).
+
+### Deploy falha porque uma versão de segredo está desativada
+
+O `deploy.ps1` preserva as referências de segredos já configuradas no Cloud Run.
+Criar uma nova versão no Secret Manager não muda essas referências. Se a versão
+antiga for desativada antes da troca, o serviço pode falhar com
+`SecretsAccessCheckFailed` ou `Secret Version [...] is in DISABLED state`.
+
+Confira quais etapas já terminaram antes de repetir o deploy. Na correção de
+13/11/2026, build e migrations já tinham concluído, e bastou atualizar o serviço
+com as versões habilitadas. O comando aplicado foi:
+
+```powershell
+gcloud.cmd run services update gbeachfood --project=gbeachfood --region=southamerica-east1 --update-secrets="ASAAS_API_KEY=gbeachfood-asaas-api-key:2,ASAAS_WEBHOOK_TOKEN=gbeachfood-asaas-webhook-token:2" --update-env-vars="ASAAS_BASE_URL=https://api.asaas.com/v3,ASAAS_PAYMENTS_ENABLED=False"
+```
+
+Esse comando altera produção e exige solicitação do responsável. Ele preserva as
+outras variáveis, referências de segredos e limites de escala. Em futuras rotações,
+use os números das versões corretas e habilitadas; não reative uma credencial antiga
+apenas para contornar o erro. Valide a nova revisão e os consumidores antes de
+desativar a versão anterior. O token também precisa corresponder ao do webhook Asaas.
 
 ### Webhook
 
