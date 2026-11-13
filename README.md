@@ -44,12 +44,13 @@ As referências dos segredos e o estado da integração Asaas foram atualizados 
 - O aplicativo foi publicado em `https://gbeachfood.web.app` com o perfil econômico,
   migrations aplicadas e administrador configurado. O desenvolvimento também pode
   continuar localmente; novas publicações não devem ocorrer automaticamente.
-- Recargas online estão pausadas com `ASAAS_PAYMENTS_ENABLED=False`. A chave e o
-  token da conta Asaas indicada pelo responsável já estão vinculados ao Cloud Run
-  pelas versões `2` dos segredos. A autenticação e a configuração do webhook foram
-  verificadas; o fluxo completo de pagamento ainda precisa ser validado antes da
-  ativação. Recargas presenciais, saldo e pedidos continuam disponíveis. A
-  recuperação de senha por e-mail aguarda SMTP.
+- Recargas online foram reativadas em produção em **13/11/2026**, por solicitação
+  explícita do responsável, com `ASAAS_PAYMENTS_ENABLED=True`. A chave e o token
+  da conta Asaas indicada estão vinculados ao Cloud Run pelas versões `2` dos
+  segredos. A autenticação e a configuração do webhook foram verificadas; a
+  confirmação do fluxo completo com pagamento real ainda está pendente. Recargas
+  presenciais, saldo e pedidos continuam disponíveis. A recuperação de senha por
+  e-mail aguarda SMTP.
 - Cartões de visitantes são emitidos como etiquetas pelo caixa. O cartão físico
   em branco é opcional, pode ser comprado novamente e tem preço definido pelo admin.
 - A área do cartão físico no admin deve permanecer compacta: título, preço e
@@ -447,11 +448,12 @@ Validação da publicação:
   cliente, crédito, cobrança ou e-mail foi criado como teste na nuvem.
 
 Após a publicação inicial, o responsável informou que a conta Asaas configurada
-não é a correta e adiou essa conexão. **Novas recargas online estão desativadas**:
-`ASAAS_PAYMENTS_ENABLED=False`, e a referência `ASAAS_API_KEY` foi retirada do
-serviço Cloud Run, preservando o segredo armazenado. O app orienta o cliente a
-recarregar no caixa; a API recusa novas cobranças e não oferece links de recargas
-pendentes durante a pausa. Registros de recargas e consultas de status são preservados.
+não era a correta e adiou essa conexão. Naquela etapa, novas recargas online foram
+desativadas com `ASAAS_PAYMENTS_ENABLED=False`, e a referência `ASAAS_API_KEY` foi
+retirada do serviço Cloud Run, preservando o segredo armazenado. Durante a pausa,
+o app orientava o cliente a recarregar no caixa; a API recusava novas cobranças e
+não oferecia links de recargas pendentes. Registros e consultas de status foram
+preservados. A reativação posterior está registrada abaixo.
 
 O webhook autenticado continua processando confirmações de recargas já existentes,
 inclusive estornos e contestações. A configuração anterior do webhook na conta
@@ -470,8 +472,17 @@ com recargas online ainda pausadas. Não houve novo build, nova execução de mi
 ou publicação do Hosting nessa correção; o endereço existente do Hosting respondeu
 normalmente. As verificações e limitações estão detalhadas na seção de pagamentos.
 
-Pendências: validar o fluxo completo de pagamento da conta Asaas antes de habilitar
-recargas online; configurar o envio de e-mail para recuperação de senha (não havia
+Ainda em **13/11/2026**, o responsável solicitou a liberação das recargas em produção.
+Foi alterada somente a variável `ASAAS_PAYMENTS_ENABLED` para `True`, mantendo a
+imagem então publicada, as versões `2` dos segredos e os limites de capacidade.
+A revisão `gbeachfood-00021-2d9` ficou pronta e recebeu 100% do tráfego. Não houve
+build, migrations ou publicação do Hosting nessa ativação. A liberação foi
+autorizada com a validação financeira completa ainda pendente; nenhuma cobrança
+real foi criada como teste e não houve auditoria das pendências da conta anterior.
+
+Pendências: acompanhar o primeiro pagamento e validar confirmação, crédito único
+e tratamento de revisão na conta Asaas; conferir eventuais pendências da conta
+anterior; configurar o envio de e-mail para recuperação de senha (não havia
 credenciais SMTP no serviço, no Secret Manager ou no ambiente local), cadastrar
 produtos e funcionários conforme a operação e validar fluxos de pagamento e carga
 representativos antes do uso operacional amplo. A senha do administrador foi
@@ -631,7 +642,7 @@ O responsável confirmou em **13/11/2026** que criou uma chave de produção da 
 correta e salvou a chave e o token como versões `2` no Secret Manager. O serviço
 `gbeachfood` usa `ASAAS_API_KEY=gbeachfood-asaas-api-key:2` e
 `ASAAS_WEBHOOK_TOKEN=gbeachfood-asaas-webhook-token:2`, com
-`ASAAS_BASE_URL=https://api.asaas.com/v3` e `ASAAS_PAYMENTS_ENABLED=False`.
+`ASAAS_BASE_URL=https://api.asaas.com/v3` e `ASAAS_PAYMENTS_ENABLED=True`.
 As versões `1` estão desativadas. O job `gbeachfood-migrate` não referencia os
 segredos Asaas e não precisou de alteração.
 
@@ -647,8 +658,18 @@ Verificações realizadas sem criar cobranças nem movimentar saldo:
 
 Esses resultados confirmam acesso à API e autenticação do endpoint, mas **não
 substituem a validação de uma entrega do Asaas e do fluxo completo de pagamento**.
-As recargas online continuam pausadas. Valores secretos foram usados apenas em
-memória e não foram impressos nem incluídos nos arquivos do projeto.
+As recargas online foram liberadas por solicitação explícita do responsável, mesmo
+com essa validação financeira ainda pendente. Após a ativação, o serviço confirmou
+`ASAAS_PAYMENTS_ENABLED=True`, revisão pronta e 100% do tráfego; o login respondeu
+HTTP 200, o webhook sem token respondeu 401 e a verificação com o token da versão
+`2` respondeu 200. Valores secretos foram usados apenas em memória e não foram
+impressos nem incluídos nos arquivos do projeto.
+
+O primeiro pagamento realizado pelo responsável deve confirmar a entrega do Asaas,
+o status pago e o saldo correto no app. Reenvios da confirmação não devem duplicar
+o crédito. A abertura da fatura ou o retorno ao app, isoladamente, não comprovam
+pagamento. A ativação não altera o padrão local: `ASAAS_PAYMENTS_ENABLED=False`
+continua sendo o padrão do código, e o `deploy.ps1` preserva a configuração do serviço.
 
 Procedimento para configurar ou substituir os segredos:
 
@@ -782,8 +803,9 @@ sem permitir alterar seus dados financeiros diretamente.
 Antes de usar em produção, habilite os eventos acima no webhook da conta Asaas e
 valide no sandbox a fatura, confirmação e revisão. Os testes automatizados usam
 respostas simuladas e não substituem essa validação da conta. O estado da infraestrutura
-está registrado na seção de hospedagem; as recargas online seguem pausadas até a conexão
-e validação da conta correta. Nenhuma cobrança real faz parte dos testes automatizados.
+está registrado na seção de hospedagem. As recargas online foram liberadas pelo
+responsável em 13/11/2026; a validação financeira completa permanece pendente.
+Nenhuma cobrança real faz parte dos testes automatizados.
 
 Referências: [pagamento por cartão](https://docs.asaas.com/docs/payments-via-credit-card),
 [eventos de cobrança](https://docs.asaas.com/docs/webhook-para-cobrancas).
